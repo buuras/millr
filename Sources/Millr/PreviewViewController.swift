@@ -113,7 +113,7 @@ final class PreviewViewController: NSViewController, NSSplitViewDelegate {
     func show(selection: [FileNode], folder: FileNode) {
         guard isViewLoaded else { return }
         let count = folder.children.count
-        header.stringValue = "\(count) öğe  ·  \(selection.count) seçili"
+        header.stringValue = Fmt.items(count) + "  ·  " + L("%d selected", selection.count)
         pending?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.render(selection: selection, folder: folder) }
         pending = work
@@ -139,12 +139,12 @@ final class PreviewViewController: NSViewController, NSSplitViewDelegate {
             ql.isHidden = true
             multiIcon.isHidden = false
             multiIcon.image = folder.icon
-            var rows: InfoBuilder.Rows = [("Ad", folder.name), ("Sonuç", "\(folder.children.count) öğe")]
+            var rows: InfoBuilder.Rows = [(L("Name"), folder.name), (L("Results"), Fmt.items(folder.children.count))]
             if let id = SmartFolders.id(fromPath: folder.path), let f = SmartFolders.shared.folder(id: id) {
-                rows.append(("Sorgu", f.query))
-                rows.append(("Nerede", f.scopes.joined(separator: ", ")))
+                rows.append((L("Query"), f.query))
+                rows.append((L("Where"), f.scopes.joined(separator: ", ")))
             }
-            sections = [("Akıllı Klasör", rows)]
+            sections = [(L("Smart Folder"), rows)]
         } else {
             let node = selection.first ?? folder
             ql.isHidden = false
@@ -161,11 +161,11 @@ final class PreviewViewController: NSViewController, NSSplitViewDelegate {
     private func startSize(_ urls: [URL], base: Int64) {
         let job = SizeJob(urls: urls) { [weak self] size, files, dirs, done in
             guard let self else { return }
-            let text = (done ? "" : "≥ ") + "\(Fmt.size(base + size))  (\(files.formatted()) dosya, \(dirs.formatted()) klasör)"
-            self.setValue(text, forLabel: "Toplam boyut")
+            let text = (done ? "" : "≥ ") + L("%@  (%@ files, %@ folders)", Fmt.size(base + size), files.formatted(), dirs.formatted())
+            self.setValue(text, forLabel: L("Total size"))
         }
         sizeJob = job
-        setValue("hesaplanıyor…", forLabel: "Toplam boyut")
+        setValue(L("calculating…"), forLabel: L("Total size"))
         job.start()
     }
 
@@ -206,7 +206,7 @@ final class PreviewViewController: NSViewController, NSSplitViewDelegate {
         ]
         for (i, s) in sections.enumerated() where !s.1.isEmpty {
             if !s.0.isEmpty || i > 0 {
-                out.append(NSAttributedString(string: s.0.uppercased(with: Locale(identifier: "tr_TR")) + "\n", attributes: headAttrs))
+                out.append(NSAttributedString(string: s.0.uppercased(with: Fmt.appLocale) + "\n", attributes: headAttrs))
             }
             for (k, v) in s.1 {
                 out.append(NSAttributedString(string: k + "\t", attributes: labelAttrs))
@@ -285,56 +285,56 @@ enum InfoBuilder {
         let files = nodes.filter { !$0.isDirectory }
         let dirs = nodes.filter(\.isDirectory)
         var rows: Rows = [
-            ("Seçili", "\(nodes.count) öğe (\(files.count) dosya, \(dirs.count) klasör)"),
-            ("Dosya boyutu", Fmt.size(files.reduce(0) { $0 + $1.size })),
+            (L("Selected"), L("%@ (%d files, %d folders)", Fmt.items(nodes.count), files.count, dirs.count)),
+            (L("File size"), Fmt.size(files.reduce(0) { $0 + $1.size })),
         ]
         let kinds = Dictionary(grouping: nodes, by: \.kind).map { "\($0.key) (\($0.value.count))" }.sorted()
-        rows.append(("Türler", kinds.joined(separator: ", ")))
+        rows.append((L("Kinds"), kinds.joined(separator: ", ")))
         let dates = nodes.compactMap(\.modified)
         if let mn = dates.min(), let mx = dates.max() {
-            rows.append(("Değiştirilme", "\(Fmt.date(mn)) → \(Fmt.date(mx))"))
+            rows.append((L("Modified"), "\(Fmt.date(mn)) → \(Fmt.date(mx))"))
         }
-        if let parent = nodes.first?.parentURL.path { rows.append(("Konum", parent)) }
-        return [("Seçim", rows)]
+        if let parent = nodes.first?.parentURL.path { rows.append((L("Location"), parent)) }
+        return [(L("Selection"), rows)]
     }
 
     static func single(_ node: FileNode) -> [(String, Rows)] {
         let url = node.url
         let fm = FileManager.default
         var general: Rows = []
-        general.append(("Ad", node.name))
-        general.append(("Tür", node.kind.isEmpty ? (node.isDirectory ? "Klasör" : "Dosya") : node.kind))
+        general.append((L("Name"), node.name))
+        general.append((L("Kind"), node.kind.isEmpty ? (node.isDirectory ? L("Folder") : L("File")) : node.kind))
         let ext = url.pathExtension
-        if !ext.isEmpty && !node.isDirectory { general.append(("Uzantı", ".\(ext)")) }
-        general.append(("Konum", node.parentURL.path))
+        if !ext.isEmpty && !node.isDirectory { general.append((L("Extension"), ".\(ext)")) }
+        general.append((L("Location"), node.parentURL.path))
         if let provider = Cloud.providerName(for: node.path) {
-            general.append(("Bulut", "\(provider)  ·  \(Cloud.title(node.cloud))"))
+            general.append((L("Cloud"), "\(provider)  ·  \(Cloud.title(node.cloud))"))
         }
         if let c = Archives.container(of: node.path) {
-            general.append(("Arşiv", c.archive.path))
+            general.append((L("Archive"), c.archive.path))
         }
         if node.isDirectory {
-            general.append(("İçerik", "\(node.children.count) öğe"))
-            general.append(("Toplam boyut", "hesaplanıyor…"))
+            general.append((L("Contents"), Fmt.items(node.children.count)))
+            general.append((L("Total size"), L("calculating…")))
         } else if node.isPackage {
-            general.append(("Toplam boyut", "hesaplanıyor…"))
+            general.append((L("Total size"), L("calculating…")))
         } else {
-            general.append(("Boyut", "\(Fmt.size(node.size))  (\(node.size.formatted()) bayt)"))
+            general.append((L("Size"), "\(Fmt.size(node.size))  (\(node.size.formatted()) bayt)"))
         }
 
         var dates: Rows = []
-        dates.append(("Oluşturulma", Fmt.longDate(node.created)))
-        dates.append(("Değiştirilme", Fmt.longDate(node.modified)))
-        dates.append(("Yaş", "\(Fmt.age(node.modified))  ·  \(Fmt.relative(node.modified))"))
+        dates.append((L("Created"), Fmt.longDate(node.created)))
+        dates.append((L("Modified"), Fmt.longDate(node.modified)))
+        dates.append((L("Age"), "\(Fmt.age(node.modified))  ·  \(Fmt.relative(node.modified))"))
 
         let md = MDItemCreateWithURL(kCFAllocatorDefault, url as CFURL)
         func attr(_ key: String) -> Any? {
             guard let md else { return nil }
             return MDItemCopyAttribute(md, key as CFString)
         }
-        if let d = attr("kMDItemLastUsedDate") as? Date { dates.append(("Son açılma", Fmt.longDate(d))) }
-        if let d = attr("kMDItemDateAdded") as? Date { dates.append(("Eklenme", Fmt.longDate(d))) }
-        if let n = attr("kMDItemUseCount") as? NSNumber { dates.append(("Açılma sayısı", n.stringValue)) }
+        if let d = attr("kMDItemLastUsedDate") as? Date { dates.append((L("Last opened"), Fmt.longDate(d))) }
+        if let d = attr("kMDItemDateAdded") as? Date { dates.append((L("Added"), Fmt.longDate(d))) }
+        if let n = attr("kMDItemUseCount") as? NSNumber { dates.append((L("Times opened"), n.stringValue)) }
 
         var media: Rows = []
         var doc: Rows = []
@@ -358,71 +358,71 @@ enum InfoBuilder {
         // Media
         if let w = attr("kMDItemPixelWidth") as? NSNumber, let h = attr("kMDItemPixelHeight") as? NSNumber {
             let mp = w.doubleValue * h.doubleValue / 1_000_000
-            media.append(("Çözünürlük", "\(w) × \(h)" + (mp >= 0.5 ? String(format: "  (%.1f MP)", mp) : "")))
+            media.append((L("Resolution"), "\(w) × \(h)" + (mp >= 0.5 ? String(format: "  (%.1f MP)", mp) : "")))
         }
-        addMD(&media, "Süre", "kMDItemDurationSeconds") { ($0 as? NSNumber).map { Fmt.duration($0.doubleValue) } }
+        addMD(&media, L("Duration"), "kMDItemDurationSeconds") { ($0 as? NSNumber).map { Fmt.duration($0.doubleValue) } }
         addMD(&media, "Codec", "kMDItemCodecs")
-        addMD(&media, "Bit hızı", "kMDItemTotalBitRate") { ($0 as? NSNumber).map { "\(Int($0.doubleValue / 1000)) kbps" } }
-        addMD(&media, "Video bit hızı", "kMDItemVideoBitRate") { ($0 as? NSNumber).map { "\(Int($0.doubleValue / 1000)) kbps" } }
-        addMD(&media, "Ses örnekleme", "kMDItemAudioSampleRate") { ($0 as? NSNumber).map { "\($0.intValue) Hz" } }
-        addMD(&media, "Ses kanalı", "kMDItemAudioChannelCount")
-        addMD(&media, "Renk uzayı", "kMDItemColorSpace")
-        addMD(&media, "Renk profili", "kMDItemProfileName")
-        addMD(&media, "Bit derinliği", "kMDItemBitsPerSample")
+        addMD(&media, L("Bit rate"), "kMDItemTotalBitRate") { ($0 as? NSNumber).map { "\(Int($0.doubleValue / 1000)) kbps" } }
+        addMD(&media, L("Video bit rate"), "kMDItemVideoBitRate") { ($0 as? NSNumber).map { "\(Int($0.doubleValue / 1000)) kbps" } }
+        addMD(&media, L("Audio sample rate"), "kMDItemAudioSampleRate") { ($0 as? NSNumber).map { "\($0.intValue) Hz" } }
+        addMD(&media, L("Audio channels"), "kMDItemAudioChannelCount")
+        addMD(&media, L("Color space"), "kMDItemColorSpace")
+        addMD(&media, L("Color profile"), "kMDItemProfileName")
+        addMD(&media, L("Bit depth"), "kMDItemBitsPerSample")
         addMD(&media, "DPI", "kMDItemResolutionWidthDPI") { ($0 as? NSNumber).map { "\($0.intValue)" } }
-        addMD(&media, "Kamera", "kMDItemAcquisitionModel")
-        addMD(&media, "Üretici", "kMDItemAcquisitionMake")
+        addMD(&media, L("Camera"), "kMDItemAcquisitionModel")
+        addMD(&media, L("Make"), "kMDItemAcquisitionMake")
         addMD(&media, "Lens", "kMDItemLensModel")
-        addMD(&media, "Diyafram", "kMDItemFNumber") { ($0 as? NSNumber).map { "f/\($0)" } }
-        addMD(&media, "Pozlama", "kMDItemExposureTimeSeconds") {
+        addMD(&media, L("Aperture"), "kMDItemFNumber") { ($0 as? NSNumber).map { "f/\($0)" } }
+        addMD(&media, L("Exposure"), "kMDItemExposureTimeSeconds") {
             guard let n = $0 as? NSNumber else { return nil }
-            return n.doubleValue < 1 && n.doubleValue > 0 ? "1/\(Int((1 / n.doubleValue).rounded())) sn" : "\(n) sn"
+            return n.doubleValue < 1 && n.doubleValue > 0 ? L("1/%d s", Int((1 / n.doubleValue).rounded())) : L("%@ s", "\(n)")
         }
         addMD(&media, "ISO", "kMDItemISOSpeed")
-        addMD(&media, "Odak uzaklığı", "kMDItemFocalLength") { ($0 as? NSNumber).map { "\($0) mm" } }
+        addMD(&media, L("Focal length"), "kMDItemFocalLength") { ($0 as? NSNumber).map { "\($0) mm" } }
         if let lat = attr("kMDItemLatitude") as? NSNumber, let lon = attr("kMDItemLongitude") as? NSNumber {
-            media.append(("Konum (GPS)", String(format: "%.5f, %.5f", lat.doubleValue, lon.doubleValue)))
+            media.append((L("Location (GPS)"), String(format: "%.5f, %.5f", lat.doubleValue, lon.doubleValue)))
         }
-        addMD(&media, "Albüm", "kMDItemAlbum")
-        addMD(&media, "Sanatçı", "kMDItemAuthors")
-        addMD(&media, "Besteci", "kMDItemComposer")
-        addMD(&media, "Tür (müzik)", "kMDItemMusicalGenre")
-        addMD(&media, "Yıl", "kMDItemRecordingYear")
+        addMD(&media, L("Album"), "kMDItemAlbum")
+        addMD(&media, L("Artist"), "kMDItemAuthors")
+        addMD(&media, L("Composer"), "kMDItemComposer")
+        addMD(&media, L("Genre"), "kMDItemMusicalGenre")
+        addMD(&media, L("Year"), "kMDItemRecordingYear")
 
         // Image fallback (non-indexed volumes)
         if media.isEmpty, !node.isDirectory, let src = CGImageSourceCreateWithURL(url as CFURL, nil),
            CGImageSourceGetCount(src) > 0,
            let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] {
             if let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int {
-                media.append(("Çözünürlük", "\(w) × \(h)"))
+                media.append((L("Resolution"), "\(w) × \(h)"))
             }
-            if let m = props[kCGImagePropertyColorModel] as? String { media.append(("Renk modeli", m)) }
-            if let d = props[kCGImagePropertyDepth] as? Int { media.append(("Bit derinliği", "\(d)")) }
+            if let m = props[kCGImagePropertyColorModel] as? String { media.append((L("Color model"), m)) }
+            if let d = props[kCGImagePropertyDepth] as? Int { media.append((L("Bit depth"), "\(d)")) }
             if let dpi = props[kCGImagePropertyDPIWidth] as? Double { media.append(("DPI", "\(Int(dpi))")) }
-            if let p = props[kCGImagePropertyProfileName] as? String { media.append(("Renk profili", p)) }
+            if let p = props[kCGImagePropertyProfileName] as? String { media.append((L("Color profile"), p)) }
         }
 
         // Documents
-        addMD(&doc, "Başlık", "kMDItemTitle")
-        if media.first(where: { $0.0 == "Sanatçı" }) == nil { addMD(&doc, "Yazar", "kMDItemAuthors") }
-        addMD(&doc, "Sayfa", "kMDItemNumberOfPages")
+        addMD(&doc, L("Title"), "kMDItemTitle")
+        if media.first(where: { $0.0 == L("Artist") }) == nil { addMD(&doc, L("Author"), "kMDItemAuthors") }
+        addMD(&doc, L("Pages"), "kMDItemNumberOfPages")
         if let w = attr("kMDItemPageWidth") as? NSNumber, let h = attr("kMDItemPageHeight") as? NSNumber {
-            doc.append(("Sayfa boyutu", String(format: "%.0f × %.0f mm", w.doubleValue / 72 * 25.4, h.doubleValue / 72 * 25.4)))
+            doc.append((L("Page size"), String(format: "%.0f × %.0f mm", w.doubleValue / 72 * 25.4, h.doubleValue / 72 * 25.4)))
         }
-        addMD(&doc, "Oluşturan", "kMDItemCreator")
-        addMD(&doc, "Kodlayan", "kMDItemEncodingApplications")
-        addMD(&doc, "Konu", "kMDItemSubject")
-        addMD(&doc, "Açıklama", "kMDItemDescription")
-        addMD(&doc, "Anahtar kelime", "kMDItemKeywords")
-        addMD(&doc, "Dil", "kMDItemLanguages")
-        addMD(&doc, "Telif", "kMDItemCopyright")
-        addMD(&doc, "Kelime sayısı", "kMDItemNumberOfWords")
-        if ext.lowercased() == "pdf", doc.first(where: { $0.0 == "Sayfa" }) == nil, let pdf = PDFDocument(url: url) {
-            doc.append(("Sayfa", "\(pdf.pageCount)"))
+        addMD(&doc, L("Creator"), "kMDItemCreator")
+        addMD(&doc, L("Encoded by"), "kMDItemEncodingApplications")
+        addMD(&doc, L("Subject"), "kMDItemSubject")
+        addMD(&doc, L("Description"), "kMDItemDescription")
+        addMD(&doc, L("Keywords"), "kMDItemKeywords")
+        addMD(&doc, L("Language"), "kMDItemLanguages")
+        addMD(&doc, L("Copyright"), "kMDItemCopyright")
+        addMD(&doc, L("Word count"), "kMDItemNumberOfWords")
+        if ext.lowercased() == "pdf", doc.first(where: { $0.0 == L("Pages") }) == nil, let pdf = PDFDocument(url: url) {
+            doc.append((L("Pages"), "\(pdf.pageCount)"))
             if let a = pdf.documentAttributes {
-                if let t = a[PDFDocumentAttribute.titleAttribute] as? String, !t.isEmpty { doc.append(("Başlık", t)) }
-                if let t = a[PDFDocumentAttribute.authorAttribute] as? String, !t.isEmpty { doc.append(("Yazar", t)) }
-                if let t = a[PDFDocumentAttribute.creatorAttribute] as? String, !t.isEmpty { doc.append(("Oluşturan", t)) }
+                if let t = a[PDFDocumentAttribute.titleAttribute] as? String, !t.isEmpty { doc.append((L("Title"), t)) }
+                if let t = a[PDFDocumentAttribute.authorAttribute] as? String, !t.isEmpty { doc.append((L("Author"), t)) }
+                if let t = a[PDFDocumentAttribute.creatorAttribute] as? String, !t.isEmpty { doc.append((L("Creator"), t)) }
             }
         }
         if !node.isDirectory && !node.isPackage && !node.isSymlink && node.size < 5_000_000,
@@ -430,65 +430,65 @@ enum InfoBuilder {
            let data = Self.readRegularFile(url, limit: 5_000_000), let s = String(data: data, encoding: .utf8) {
             var lines = 0
             s.enumerateLines { _, _ in lines += 1 }
-            doc.append(("Satır", lines.formatted()))
-            doc.append(("Karakter", s.count.formatted()))
-            doc.append(("Kodlama", "UTF-8"))
+            doc.append((L("Lines"), lines.formatted()))
+            doc.append((L("Characters"), s.count.formatted()))
+            doc.append((L("Encoding"), "UTF-8"))
         }
 
         // Applications / bundles
         addMD(&app, "Bundle ID", "kMDItemCFBundleIdentifier")
-        addMD(&app, "Sürüm", "kMDItemVersion")
-        addMD(&app, "Mimari", "kMDItemExecutableArchitectures")
+        addMD(&app, L("Version"), "kMDItemVersion")
+        addMD(&app, L("Architecture"), "kMDItemExecutableArchitectures")
         if node.isPackage, let b = Bundle(url: url) {
             if app.first(where: { $0.0 == "Bundle ID" }) == nil, let id = b.bundleIdentifier { app.append(("Bundle ID", id)) }
-            if let v = b.infoDictionary?["CFBundleShortVersionString"] as? String, app.first(where: { $0.0 == "Sürüm" }) == nil {
-                app.append(("Sürüm", v))
+            if let v = b.infoDictionary?["CFBundleShortVersionString"] as? String, app.first(where: { $0.0 == L("Version") }) == nil {
+                app.append((L("Version"), v))
             }
             if let m = b.infoDictionary?["LSMinimumSystemVersion"] as? String { app.append(("Min. macOS", m)) }
         }
 
         // Source
-        addMD(&source, "İndirildiği yer", "kMDItemWhereFroms") { v in
+        addMD(&source, L("Downloaded from"), "kMDItemWhereFroms") { v in
             (v as? [String]).map { $0.filter { !$0.isEmpty }.joined(separator: "\n") }
         }
-        addMD(&source, "İçerik türü", "kMDItemContentType")
+        addMD(&source, L("Content type"), "kMDItemContentType")
         if let v = try? url.resourceValues(forKeys: [.tagNamesKey]), let tags = v.tagNames, !tags.isEmpty {
-            source.append(("Etiketler", tags.joined(separator: ", ")))
+            source.append((L("Tags"), tags.joined(separator: ", ")))
         }
-        addMD(&source, "Finder yorumu", "kMDItemFinderComment")
+        addMD(&source, L("Finder comment"), "kMDItemFinderComment")
 
         // System
         var system: Rows = []
         if let a = try? fm.attributesOfItem(atPath: url.path) {
             if let p = a[.posixPermissions] as? NSNumber {
-                system.append(("İzinler", Fmt.permissions(p.intValue, isDir: node.isDirectory)))
+                system.append((L("Permissions"), Fmt.permissions(p.intValue, isDir: node.isDirectory)))
             }
             let owner = a[.ownerAccountName] as? String ?? "?"
             let group = a[.groupOwnerAccountName] as? String ?? "?"
-            system.append(("Sahip", "\(owner) : \(group)"))
-            if (a[.immutable] as? NSNumber)?.boolValue == true { system.append(("Kilitli", "Evet")) }
+            system.append((L("Owner"), "\(owner) : \(group)"))
+            if (a[.immutable] as? NSNumber)?.boolValue == true { system.append((L("Locked"), L("Yes"))) }
         }
         if node.isSymlink, let dest = try? fm.destinationOfSymbolicLink(atPath: url.path) {
-            system.append(("Bağlantı hedefi", dest))
+            system.append((L("Link target"), dest))
         }
-        if node.isHiddenFile { system.append(("Gizli", "Evet")) }
-        system.append(("Yol", url.path))
+        if node.isHiddenFile { system.append((L("Hidden"), L("Yes"))) }
+        system.append((L("Path"), url.path))
         let vkeys: Set<URLResourceKey> = [.volumeLocalizedNameKey, .volumeTotalCapacityKey,
                                           .volumeAvailableCapacityForImportantUsageKey, .volumeLocalizedFormatDescriptionKey, .volumeURLKey]
         if let v = try? url.resourceValues(forKeys: vkeys) {
             var volRows: Rows = []
-            if let n = v.volumeLocalizedName { volRows.append(("Disk", n)) }
+            if let n = v.volumeLocalizedName { volRows.append((L("Disk"), n)) }
             if let t = v.volumeTotalCapacity, let f = v.volumeAvailableCapacityForImportantUsage {
                 let used = Double(Int64(t) - f) / Double(max(1, t)) * 100
-                volRows.append(("Boş alan", "\(Fmt.size(f)) / \(Fmt.size(Int64(t)))  (%\(Int(used)) dolu)"))
+                volRows.append((L("Free space"), L("%@ / %@  (%d%% used)", Fmt.size(f), Fmt.size(Int64(t)), Int(used))))
             }
-            if let fs = v.volumeLocalizedFormatDescription { volRows.append(("Dosya sistemi", fs)) }
+            if let fs = v.volumeLocalizedFormatDescription { volRows.append((L("File system"), fs)) }
             system += volRows
         }
 
         return [
-            ("", general), ("Tarihler", dates), ("Medya", media), ("Belge", doc),
-            ("Uygulama", app), ("Kaynak", source), ("Sistem", system),
+            ("", general), (L("Dates"), dates), (L("Media"), media), (L("Document"), doc),
+            (L("Application"), app), (L("Source"), source), (L("System"), system),
         ]
     }
 }

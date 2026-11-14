@@ -72,7 +72,7 @@ final class PaneViewController: NSViewController, ColumnsViewDelegate, NSSplitVi
         pathControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         pathControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        let previewButton = symbolButton("sidebar.right", "Önizleme paneli (⌥⌘P)", target: self, action: #selector(togglePreview))
+        let previewButton = symbolButton("sidebar.right", L("Preview pane (⌥⌘P)"), target: self, action: #selector(togglePreview))
         navButtons = [previewButton]
         let nav = NSStackView(views: [pathControl, previewButton])
         nav.orientation = .horizontal
@@ -391,19 +391,19 @@ final class PaneViewController: NSViewController, ColumnsViewDelegate, NSSplitVi
     private func updateStatus() {
         let folder = currentFolderNode
         let sel = selectedNodes
-        var parts = [folder.isVirtual ? "\(folder.children.count) sonuç · akıllı klasör (canlı)" : "\(folder.children.count) öğe"]
+        var parts = [folder.isVirtual ? L("%d results · smart folder (live)", folder.children.count) : Fmt.items(folder.children.count)]
         if let c = Archives.container(of: folder.path) {
-            parts.append("📦 \(c.archive.lastPathComponent) içeriği — salt okunur kopya, değişiklikler arşive yazılmaz")
+            parts.append(L("📦 Contents of %@ — read-only copy, changes are not written to the archive", c.archive.lastPathComponent))
         }
         if !sel.isEmpty {
-            parts.append("\(sel.count) seçili")
+            parts.append(L("%d selected", sel.count))
             let files = sel.filter { !$0.isContainer }
             if !files.isEmpty { parts.append(Fmt.size(files.reduce(0) { $0 + $1.size })) }
         }
         if let cloud = Cloud.providerName(for: folder.path) { parts.append("☁︎ \(cloud)") }
         if !folder.isVirtual, let v = try? folder.url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
            let free = v.volumeAvailableCapacityForImportantUsage {
-            parts.append("\(Fmt.size(free)) boş")
+            parts.append(L("%@ free", Fmt.size(free)))
         }
         if let e = folder.loadError { parts.append("⚠︎ \(e)") }
         statusLabel.stringValue = parts.joined(separator: "  ·  ")
