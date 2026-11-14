@@ -42,7 +42,7 @@ struct Theme {
     }
 
     static let system = Theme(
-        id: "system", name: "Sistem", appearance: nil,
+        id: "system", name: L("System"), appearance: nil,
         chrome: .windowBackgroundColor, sidebar: nil, column: .controlBackgroundColor,
         strip: NSColor(name: nil) { a in
             a.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? hex(0x2A2A2D) : hex(0xEDEDF0)
@@ -66,7 +66,7 @@ struct Theme {
         ageMinute: hex(0xBF616A), ageHour: hex(0xD08770), ageDay: hex(0x8FA876), ageMonth: hex(0x5E81AC), ageYear: hex(0x7B88A1))
 
     static let nordNight = Theme(
-        id: "nordNight", name: "Nord Gece", appearance: NSAppearance(named: .darkAqua),
+        id: "nordNight", name: L("Nord Night"), appearance: NSAppearance(named: .darkAqua),
         chrome: hex(0x2B303B), sidebar: hex(0x262A33), column: hex(0x2E3440), strip: hex(0x3B4252),
         preview: hex(0x313744),
         text: hex(0xECEFF4), secondary: hex(0xD8DEE9, 0.72), tertiary: hex(0x7B88A1),
@@ -75,7 +75,7 @@ struct Theme {
         ageMinute: hex(0xBF616A), ageHour: hex(0xD08770), ageDay: hex(0xA3BE8C), ageMonth: hex(0x88C0D0), ageYear: hex(0x7B88A1))
 
     static let dark = Theme(
-        id: "dark", name: "Koyu", appearance: NSAppearance(named: .darkAqua),
+        id: "dark", name: L("Dark"), appearance: NSAppearance(named: .darkAqua),
         chrome: hex(0x1C1D20), sidebar: hex(0x18191C), column: hex(0x232428), strip: hex(0x2C2E33),
         preview: hex(0x26272B),
         text: hex(0xE8E8EA), secondary: hex(0xA2A5AC), tertiary: hex(0x6E727A),

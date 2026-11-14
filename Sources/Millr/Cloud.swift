@@ -37,13 +37,13 @@ enum Cloud {
 
     static func title(_ s: State) -> String {
         switch s {
-        case .none: return "Yerel"
-        case .local: return "İndirildi, eşitlendi"
-        case .cloudOnly: return "Yalnızca bulutta"
-        case .downloading: return "İndiriliyor"
-        case .uploading: return "Yükleniyor"
-        case .conflict: return "Çakışma var"
-        case .excluded: return "Eşitlemeden hariç"
+        case .none: return L("Local")
+        case .local: return L("Downloaded, in sync")
+        case .cloudOnly: return L("Cloud only")
+        case .downloading: return L("Downloading")
+        case .uploading: return L("Uploading")
+        case .conflict: return L("Conflict")
+        case .excluded: return L("Excluded from sync")
         }
     }
 

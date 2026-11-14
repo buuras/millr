@@ -51,7 +51,7 @@ enum Archives {
             completion(.success(root))
             return
         }
-        let job = FileJob(kind: .extract, title: "Arşiv açılıyor: \(archive.lastPathComponent)")
+        let job = FileJob(kind: .extract, title: L("Opening archive: %@", archive.lastPathComponent))
         job.indeterminate = true
         let p = Process()
         job.onCancel = { if p.isRunning { p.terminate() } }
@@ -66,7 +66,7 @@ enum Archives {
             guard p.terminationStatus == 0 else {
                 try? fm.removeItem(at: dir)
                 throw NSError(domain: "OCArchive", code: Int(p.terminationStatus),
-                              userInfo: [NSLocalizedDescriptionKey: msg.isEmpty ? "Arşiv açılamadı." : msg])
+                              userInfo: [NSLocalizedDescriptionKey: msg.isEmpty ? L("Could not open the archive.") : msg])
             }
             fm.createFile(atPath: marker.path, contents: nil)
         }, completion: { job in
@@ -83,7 +83,7 @@ enum Archives {
     }
 
     private static func mount(_ image: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-        let job = FileJob(kind: .extract, title: "Disk görüntüsü bağlanıyor: \(image.lastPathComponent)")
+        let job = FileJob(kind: .extract, title: L("Mounting disk image: %@", image.lastPathComponent))
         job.indeterminate = true
         var mountPoint: String?
         FileJobs.shared.run(job, work: { _ in
@@ -101,7 +101,7 @@ enum Archives {
                   let ents = plist["system-entities"] as? [[String: Any]],
                   let mp = ents.compactMap({ $0["mount-point"] as? String }).first else {
                 throw NSError(domain: "OCArchive", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "Disk görüntüsü bağlanamadı (şifreli ya da bozuk olabilir)."])
+                              userInfo: [NSLocalizedDescriptionKey: L("Could not mount the disk image (it may be encrypted or damaged).")])
             }
             mountPoint = mp
         }, completion: { job in
@@ -119,7 +119,7 @@ enum Archives {
     static func extractHere(_ archive: URL, completion: @escaping (Result<URL, Error>) -> Void) {
         let dest = FileOps.uniqueURL(for: (archive.lastPathComponent as NSString).deletingPathExtension,
                                      in: archive.deletingLastPathComponent())
-        let job = FileJob(kind: .extract, title: "Çıkarılıyor: \(archive.lastPathComponent)")
+        let job = FileJob(kind: .extract, title: L("Extracting: %@", archive.lastPathComponent))
         job.indeterminate = true
         let p = Process()
         job.onCancel = { if p.isRunning { p.terminate() } }
@@ -132,7 +132,7 @@ enum Archives {
                 try? FileManager.default.removeItem(at: dest)
                 if !job.isCancelled {
                     throw NSError(domain: "OCArchive", code: 3,
-                                  userInfo: [NSLocalizedDescriptionKey: msg.isEmpty ? "Arşiv çıkarılamadı." : msg])
+                                  userInfo: [NSLocalizedDescriptionKey: msg.isEmpty ? L("Could not extract the archive.") : msg])
                 }
             }
         }, completion: { job in

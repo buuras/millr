@@ -266,6 +266,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         Prefs.shared.themeID = Theme.all[sender.tag].id
     }
 
+    @objc func setLanguage(_ sender: NSMenuItem) {
+        guard AppLanguage.options.indices.contains(sender.tag) else { return }
+        let code = AppLanguage.options[sender.tag].code
+        guard code != AppLanguage.chosen else { return }
+        AppLanguage.choose(code)
+        let alert = NSAlert()
+        alert.messageText = L("The new language applies after Millr restarts.")
+        alert.addButton(withTitle: L("Restart Now"))
+        alert.addButton(withTitle: L("Later"))
+        if alert.runModal() == .alertFirstButtonReturn { AppLanguage.relaunch() }
+    }
+
     @objc private func prefsChanged() {
         FileNode.invalidateAll()
         for p in panes where p.isViewLoaded { p.reloadKeepingSelection() }
@@ -311,7 +323,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
             guard let self else { return }
             self.refresh(dirs: Array(sources) + [dir])
             if move { Shelf.shared.prune() }
-            self.recordUndo(job.ops, name: move ? "Taşıma" : "Kopyalama")
+            self.recordUndo(job.ops, name: move ? L("Moving") : L("Copying"))
             then?(job.results)
         }
     }
@@ -361,7 +373,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         register(name: name) { $0.revert(done.ops, name: name) }
         refresh(dirs: Array(dirs))
         guard !pairs.isEmpty else { return }
-        FileJobs.shared.movePairs(pairs, title: "Geri alınıyor: \(name)") { [weak self] job in
+        FileJobs.shared.movePairs(pairs, title: L("Undoing: %@", name)) { [weak self] job in
             done.ops += job.ops
             self?.refresh(dirs: Array(dirs))
             Shelf.shared.prune()
@@ -378,13 +390,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
     func rename(_ node: FileNode, in pane: PaneViewController) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Yeniden adlandır"
+        alert.messageText = L("Rename")
         alert.informativeText = node.name
         let field = NSTextField(string: node.name)
         field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
         alert.accessoryView = field
-        alert.addButton(withTitle: "Adlandır")
-        alert.addButton(withTitle: "Vazgeç")
+        alert.addButton(withTitle: L("Rename"))
+        alert.addButton(withTitle: L("Cancel"))
         alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { [weak self] resp in
             guard let self, resp == .alertFirstButtonReturn else { return }
@@ -392,7 +404,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
             guard !newName.isEmpty, newName != node.name, !newName.contains("/") else { return }
             do {
                 let dest = try FileOps.rename(node.url, to: newName)
-                self.recordUndo([.moved(from: node.url, to: dest)], name: "Yeniden Adlandırma")
+                self.recordUndo([.moved(from: node.url, to: dest)], name: L("Renaming"))
                 self.refresh(dirs: [node.parentURL])
                 pane.reveal(dest)
             } catch { self.showError(error) }
@@ -410,7 +422,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         NSWorkspace.shared.recycle(urls) { [weak self] map, err in
             DispatchQueue.main.async {
                 if let err { self?.showError(err) }
-                self?.recordUndo(map.map { .moved(from: $0.key, to: $0.value) }, name: "Çöp Sepetine Taşıma")
+                self?.recordUndo(map.map { .moved(from: $0.key, to: $0.value) }, name: L("Moving to Trash"))
                 self?.refresh(dirs: Array(dirs))
                 Shelf.shared.prune()
             }
@@ -421,7 +433,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         do {
             if VirtualFolders.isVirtual(dir) { NSSound.beep(); return }
             let u = try FileOps.newFolder(in: dir)
-            recordUndo([.created(u)], name: "Yeni Klasör")
+            recordUndo([.created(u)], name: L("New Folder"))
             refresh(dirs: [dir])
             pane.reveal(u)
             rename(FileNode.node(for: u), in: pane)
@@ -432,7 +444,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         do {
             if VirtualFolders.isVirtual(dir) { NSSound.beep(); return }
             let u = try FileOps.newFile(in: dir)
-            recordUndo([.created(u)], name: "Yeni Dosya")
+            recordUndo([.created(u)], name: L("New File"))
             refresh(dirs: [dir])
             pane.reveal(u)
             rename(FileNode.node(for: u), in: pane)
@@ -478,16 +490,16 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         let single = targets.count == 1 ? targets[0] : nil
 
         if !targets.isEmpty {
-            menu.addItem(ClosureMenuItem("Aç", symbol: "arrow.up.forward.app") { [weak self] in self?.openItems(urls, in: pane) })
+            menu.addItem(ClosureMenuItem(L("Open"), symbol: "arrow.up.forward.app") { [weak self] in self?.openItems(urls, in: pane) })
             if let single, !single.isDirectory || single.isPackage {
-                let openWith = NSMenuItem(title: "Birlikte Aç", action: nil, keyEquivalent: "")
+                let openWith = NSMenuItem(title: L("Open With"), action: nil, keyEquivalent: "")
                 openWith.image = NSImage(systemSymbolName: "square.on.square", accessibilityDescription: nil)
                 let sub = NSMenu()
                 let def = NSWorkspace.shared.urlForApplication(toOpen: single.url)
                 var apps = NSWorkspace.shared.urlsForApplications(toOpen: single.url)
                 if let def { apps.removeAll { $0 == def }; apps.insert(def, at: 0) }
                 for (i, a) in apps.prefix(25).enumerated() {
-                    let name = FileManager.default.displayName(atPath: a.path) + (i == 0 && def != nil ? " (varsayılan)" : "")
+                    let name = FileManager.default.displayName(atPath: a.path) + (i == 0 && def != nil ? L(" (default)") : "")
                     let item = ClosureMenuItem(name) {
                         NSWorkspace.shared.open(urls, withApplicationAt: a, configuration: NSWorkspace.OpenConfiguration())
                     }
@@ -501,25 +513,25 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
                 menu.addItem(openWith)
             }
             if let single, single.isDirectory {
-                menu.addItem(ClosureMenuItem("Yeni Sekmede Aç", symbol: "plus.square.on.square") { pane.newTab(at: single.url) })
-                menu.addItem(ClosureMenuItem("Diğer Panelde Aç", symbol: "rectangle.split.1x2") { [weak self] in self?.openInOtherPane(single.url) })
+                menu.addItem(ClosureMenuItem(L("Open in New Tab"), symbol: "plus.square.on.square") { pane.newTab(at: single.url) })
+                menu.addItem(ClosureMenuItem(L("Open in Other Pane"), symbol: "rectangle.split.1x2") { [weak self] in self?.openInOtherPane(single.url) })
             }
-            menu.addItem(ClosureMenuItem("Hızlı Bakış", symbol: "eye") { [weak self] in self?.toggleQuickLook(nil) })
-            menu.addItem(ClosureMenuItem("Finder'da Göster", symbol: "folder") { NSWorkspace.shared.activateFileViewerSelecting(urls) })
+            menu.addItem(ClosureMenuItem(L("Quick Look"), symbol: "eye") { [weak self] in self?.toggleQuickLook(nil) })
+            menu.addItem(ClosureMenuItem(L("Show in Finder"), symbol: "folder") { NSWorkspace.shared.activateFileViewerSelecting(urls) })
             if folder.isVirtual, let single {
-                menu.addItem(ClosureMenuItem("Bulunduğu Klasöre Git", symbol: "arrow.turn.up.right") { pane.reveal(single.url) })
+                menu.addItem(ClosureMenuItem(L("Go to Enclosing Folder"), symbol: "arrow.turn.up.right") { pane.reveal(single.url) })
             }
             if let single, !single.isDirectory, Archives.canBrowse(single.url) {
                 menu.addItem(.separator())
-                menu.addItem(ClosureMenuItem("Arşivin İçine Gir", symbol: "archivebox") { [weak self] in
+                menu.addItem(ClosureMenuItem(L("Browse Archive"), symbol: "archivebox") { [weak self] in
                     self?.browseArchive(single.url, in: pane)
                 })
                 if !Archives.imageExts.contains(single.url.pathExtension.lowercased()) {
-                    menu.addItem(ClosureMenuItem("Buraya Çıkar", symbol: "arrow.down.doc") { [weak self] in
+                    menu.addItem(ClosureMenuItem(L("Extract Here"), symbol: "arrow.down.doc") { [weak self] in
                         Archives.extractHere(single.url) { r in
                             switch r {
                             case .success(let d):
-                                self?.recordUndo([.created(d)], name: "Arşiv Çıkarma")
+                                self?.recordUndo([.created(d)], name: L("Extracting"))
                                 self?.refresh(dirs: [d.deletingLastPathComponent()])
                                 pane.reveal(d)
                             case .failure(let e): self?.showError(e)
@@ -532,10 +544,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
             if !cloudTargets.isEmpty {
                 let cu = cloudTargets.map(\.url)
                 menu.addItem(.separator())
-                menu.addItem(ClosureMenuItem("Şimdi İndir", symbol: "icloud.and.arrow.down") { [weak self] in
+                menu.addItem(ClosureMenuItem(L("Download Now"), symbol: "icloud.and.arrow.down") { [weak self] in
                     Cloud.download(cu) { self?.refresh(dirs: [folder.url]) }
                 })
-                menu.addItem(ClosureMenuItem("Yerden Kazan (Yalnızca Bulutta Tut)", symbol: "icloud") { [weak self] in
+                menu.addItem(ClosureMenuItem(L("Free Up Space (Keep in Cloud Only)"), symbol: "icloud") { [weak self] in
                     Cloud.evict(cu) { e in
                         if let e { self?.showError(e) }
                         self?.refresh(dirs: [folder.url])
@@ -543,17 +555,17 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
                 })
             }
             menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem("Kes", key: "x", symbol: "scissors") { [weak self] in self?.copyToPasteboard(urls, cut: true) })
-            menu.addItem(ClosureMenuItem("Kopyala", key: "c", symbol: "doc.on.doc") { [weak self] in self?.copyToPasteboard(urls, cut: false) })
+            menu.addItem(ClosureMenuItem(L("Cut"), key: "x", symbol: "scissors") { [weak self] in self?.copyToPasteboard(urls, cut: true) })
+            menu.addItem(ClosureMenuItem(L("Copy"), key: "c", symbol: "doc.on.doc") { [weak self] in self?.copyToPasteboard(urls, cut: false) })
         }
         let canPaste = NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
         let pasteTarget = single?.isDirectory == true ? single!.url : folder.url
         if targets.isEmpty { menu.addItem(.separator()) }
-        menu.addItem(ClosureMenuItem("Yapıştır", key: "v", symbol: "clipboard", enabled: canPaste) { [weak self] in
+        menu.addItem(ClosureMenuItem(L("Paste"), key: "v", symbol: "clipboard", enabled: canPaste) { [weak self] in
             self?.paste(into: pasteTarget, forceMove: false, pane: pane)
         })
         if canPaste {
-            menu.addItem(ClosureMenuItem("Öğeyi Buraya Taşı", key: "v", mods: [.command, .option]) { [weak self] in
+            menu.addItem(ClosureMenuItem(L("Move Item Here"), key: "v", mods: [.command, .option]) { [weak self] in
                 self?.paste(into: pasteTarget, forceMove: true, pane: pane)
             })
         }
@@ -561,27 +573,27 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         if !targets.isEmpty {
             let otherDir = otherPane === pane ? activePane.currentFolder : otherPane.currentFolder
             menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem("Diğer Panele Kopyala  (F5)", symbol: "doc.on.doc.fill") { [weak self] in
+            menu.addItem(ClosureMenuItem(L("Copy to Other Pane (F5)"), symbol: "doc.on.doc.fill") { [weak self] in
                 self?.transfer(urls, to: otherDir, move: false)
             })
-            menu.addItem(ClosureMenuItem("Diğer Panele Taşı  (F6)", symbol: "arrow.right.doc.on.clipboard") { [weak self] in
+            menu.addItem(ClosureMenuItem(L("Move to Other Pane (F6)"), symbol: "arrow.right.doc.on.clipboard") { [weak self] in
                 self?.transfer(urls, to: otherDir, move: true)
             })
             if let single {
-                menu.addItem(ClosureMenuItem("Yeniden Adlandır  (F2)", symbol: "pencil") { [weak self] in self?.rename(single, in: pane) })
+                menu.addItem(ClosureMenuItem(L("Rename (F2)"), symbol: "pencil") { [weak self] in self?.rename(single, in: pane) })
             }
-            menu.addItem(ClosureMenuItem("Çoğalt", key: "d", symbol: "plus.square.on.square") { [weak self] in
+            menu.addItem(ClosureMenuItem(L("Duplicate"), key: "d", symbol: "plus.square.on.square") { [weak self] in
                 FileOps.duplicate(urls) { r, e in
                     if let e { self?.showError(e) }
-                    self?.recordUndo(r.map { .created($0) }, name: "Çoğaltma")
+                    self?.recordUndo(r.map { .created($0) }, name: L("Duplicating"))
                     self?.refresh(dirs: [folder.url])
                     if let f = r.first { pane.reveal(f) }
                 }
             })
-            menu.addItem(ClosureMenuItem("Sıkıştır (.zip)", symbol: "archivebox") { [weak self] in
+            menu.addItem(ClosureMenuItem(L("Compress (.zip)"), symbol: "archivebox") { [weak self] in
                 FileOps.compress(urls, in: folder.url) { r, e in
                     if let e { self?.showError(e) }
-                    self?.recordUndo(r.map { .created($0) }, name: "Sıkıştırma")
+                    self?.recordUndo(r.map { .created($0) }, name: L("Compressing"))
                     self?.refresh(dirs: [folder.url])
                     if let f = r.first { pane.reveal(f) }
                 }
@@ -590,39 +602,39 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
 
         menu.addItem(.separator())
         let newDir = single?.isDirectory == true ? single!.url : folder.url
-        menu.addItem(ClosureMenuItem("Yeni Klasör  (F7)", symbol: "folder.badge.plus") { [weak self] in self?.createFolder(in: newDir, pane: pane) })
-        menu.addItem(ClosureMenuItem("Yeni Metin Dosyası", symbol: "doc.badge.plus") { [weak self] in self?.createFile(in: newDir, pane: pane) })
+        menu.addItem(ClosureMenuItem(L("New Folder (F7)"), symbol: "folder.badge.plus") { [weak self] in self?.createFolder(in: newDir, pane: pane) })
+        menu.addItem(ClosureMenuItem(L("New Text File"), symbol: "doc.badge.plus") { [weak self] in self?.createFile(in: newDir, pane: pane) })
 
         if !targets.isEmpty {
             menu.addItem(.separator())
             menu.addItem(tagMenuItem(urls: urls, folder: folder.url))
-            menu.addItem(ClosureMenuItem("Yolu Kopyala", key: "c", mods: [.command, .option], symbol: "link") { [weak self] in self?.copyPaths(urls) })
+            menu.addItem(ClosureMenuItem(L("Copy Path"), key: "c", mods: [.command, .option], symbol: "link") { [weak self] in self?.copyPaths(urls) })
             menu.addItem(SidebarViewController.addToGroupMenu(urls: urls, window: window))
-            menu.addItem(ClosureMenuItem("Rafa Ekle", key: "d", mods: [.command, .shift], symbol: "tray.and.arrow.down") {
+            menu.addItem(ClosureMenuItem(L("Add to Shelf"), key: "d", mods: [.command, .shift], symbol: "tray.and.arrow.down") {
                 Shelf.shared.add(urls)
             })
         }
         if folder.isVirtual {
             menu.addItem(.separator())
             if SmartFolders.shared.isTemporary(path: folder.path) {
-                menu.addItem(ClosureMenuItem("Akıllı Klasör Olarak Kaydet…", symbol: "gearshape.2") { [weak self] in
+                menu.addItem(ClosureMenuItem(L("Save as Smart Folder…"), symbol: "gearshape.2") { [weak self] in
                     SmartFolders.shared.saveTemporary(path: folder.path, window: self?.window)
                 })
             }
-            menu.addItem(ClosureMenuItem("Sonuçları Yenile", symbol: "arrow.clockwise") { SmartFolders.shared.rerun(path: folder.path) })
+            menu.addItem(ClosureMenuItem(L("Refresh Results"), symbol: "arrow.clockwise") { SmartFolders.shared.rerun(path: folder.path) })
             return
         }
         let termDir = single?.isDirectory == true ? single!.url : folder.url
-        menu.addItem(ClosureMenuItem("Terminalde Aç", symbol: "terminal") { [weak self] in self?.openTerminal(termDir) })
+        menu.addItem(ClosureMenuItem(L("Open in Terminal"), symbol: "terminal") { [weak self] in self?.openTerminal(termDir) })
 
         if !targets.isEmpty {
             menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem("Çöp Sepetine Taşı  (F8)", key: "\u{8}", symbol: "trash") { [weak self] in self?.trash(urls) })
+            menu.addItem(ClosureMenuItem(L("Move to Trash (F8)"), key: "\u{8}", symbol: "trash") { [weak self] in self?.trash(urls) })
         }
     }
 
     private func tagMenuItem(urls: [URL], folder: URL) -> NSMenuItem {
-        let item = NSMenuItem(title: "Renk Etiketi", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L("Color Label"), action: nil, keyEquivalent: "")
         item.image = NSImage(systemSymbolName: "tag", accessibilityDescription: nil)
         let sub = NSMenu()
         let names = NSWorkspace.shared.fileLabels
@@ -637,7 +649,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
             sub.addItem(mi)
         }
         sub.addItem(.separator())
-        sub.addItem(ClosureMenuItem("Etiketi Kaldır") { [weak self] in
+        sub.addItem(ClosureMenuItem(L("Remove Label")) { [weak self] in
             FileOps.setLabel(urls, 0)
             self?.refresh(dirs: [folder])
         })
@@ -677,7 +689,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         let p = pane
         FileOps.duplicate(urls) { [weak self] r, e in
             if let e { self?.showError(e) }
-            self?.recordUndo(r.map { .created($0) }, name: "Çoğaltma")
+            self?.recordUndo(r.map { .created($0) }, name: L("Duplicating"))
             self?.refresh(dirs: urls.map { $0.deletingLastPathComponent() })
             if let f = r.first { p.reveal(f) }
         }
@@ -688,7 +700,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         let p = pane
         FileOps.compress(urls, in: dir) { [weak self] r, e in
             if let e { self?.showError(e) }
-            self?.recordUndo(r.map { .created($0) }, name: "Sıkıştırma")
+            self?.recordUndo(r.map { .created($0) }, name: L("Compressing"))
             self?.refresh(dirs: [dir])
             if let f = r.first { p.reveal(f) }
         }
@@ -708,7 +720,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
     @objc func openTerminalHere(_ sender: Any?) { openTerminal(pane.currentFolder) }
     @objc func addToFavorites(_ sender: Any?) {
         let urls = pane.selectedURLs.isEmpty ? [pane.currentFolder] : pane.selectedURLs
-        if let g = Prefs.shared.groups.first { Prefs.shared.add(urls, toGroup: g.id) } else { Prefs.shared.createGroup("Favoriler", with: urls) }
+        if let g = Prefs.shared.groups.first { Prefs.shared.add(urls, toGroup: g.id) } else { Prefs.shared.createGroup(L("Favorites"), with: urls) }
     }
 
     @objc func showCommandPalette(_ sender: Any?) { palette.toggle() }
@@ -782,12 +794,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
     @objc func goToFolder(_ sender: Any?) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Klasöre Git"
+        alert.messageText = L("Go to Folder")
         let field = NSTextField(string: pane.currentFolder.path)
         field.frame = NSRect(x: 0, y: 0, width: 380, height: 24)
         alert.accessoryView = field
-        alert.addButton(withTitle: "Git")
-        alert.addButton(withTitle: "Vazgeç")
+        alert.addButton(withTitle: L("Go"))
+        alert.addButton(withTitle: L("Cancel"))
         alert.window.initialFirstResponder = field
         let p = pane
         alert.beginSheetModal(for: window) { resp in
@@ -811,6 +823,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         case #selector(toggleLayout(_:)): item.state = Prefs.shared.overUnder ? .on : .off
         case #selector(setTheme(_:)):
             item.state = Theme.all.indices.contains(item.tag) && Theme.all[item.tag].id == Theme.current.id ? .on : .off
+        case #selector(setLanguage(_:)):
+            item.state = AppLanguage.options.indices.contains(item.tag) && AppLanguage.options[item.tag].code == AppLanguage.chosen ? .on : .off
         case #selector(sortBy(_:)):
             item.state = Prefs.shared.sort(for: pane.currentFolder.path).key.rawValue == item.tag ? .on : .off
         case #selector(renameSelection(_:)): return pane.selectedNodes.count == 1
@@ -847,9 +861,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         if id == Self.themeID {
             let item = NSMenuToolbarItem(itemIdentifier: id)
-            item.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: "Tema")
-            item.label = "Tema"
-            item.toolTip = "Tema"
+            item.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: L("Theme"))
+            item.label = L("Theme")
+            item.toolTip = L("Theme")
             item.showsIndicator = false
             let m = NSMenu()
             for (i, t) in Theme.all.enumerated() {
@@ -862,9 +876,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
             return item
         }
         let specs: [NSToolbarItem.Identifier: (String, String, Selector)] = [
-            Self.dualID: ("rectangle.split.1x2", "Tek / çift panel (⌥⌘D)", #selector(toggleDualPane(_:))),
-            Self.layoutID: ("rectangle.split.2x1", "Üst-alt / yan yana (⌥⌘L)", #selector(toggleLayout(_:))),
-            Self.previewID: ("sidebar.right", "Önizleme panelleri (⌥⌘P)", #selector(togglePreview(_:))),
+            Self.dualID: ("rectangle.split.1x2", L("Single / dual pane (⌥⌘D)"), #selector(toggleDualPane(_:))),
+            Self.layoutID: ("rectangle.split.2x1", L("Stacked / side by side (⌥⌘L)"), #selector(toggleLayout(_:))),
+            Self.previewID: ("sidebar.right", L("Preview panes (⌥⌘P)"), #selector(togglePreview(_:))),
         ]
         guard let (symbol, tip, action) = specs[id] else { return nil }
         let item = NSToolbarItem(itemIdentifier: id)

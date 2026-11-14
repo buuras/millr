@@ -11,10 +11,10 @@ enum SortKey: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .name: return "Ad"
-        case .kind: return "Tür"
-        case .modified: return "Değiştirilme Tarihi"
-        case .size: return "Boyut"
+        case .name: return L("Name")
+        case .kind: return L("Kind")
+        case .modified: return L("Date Modified")
+        case .size: return L("Size")
         }
     }
 }
@@ -89,7 +89,7 @@ final class Prefs {
             }
             // first run / migration from the old flat favorites list
             let old = d.stringArray(forKey: "favorites") ?? []
-            return [SidebarGroup(name: "Favoriler", paths: old)]
+            return [SidebarGroup(name: L("Favorites"), paths: old)]
         }
         set {
             if let data = try? JSONEncoder().encode(newValue) { d.set(data, forKey: "sidebarGroups") }
@@ -168,7 +168,7 @@ enum Fmt {
 
     static let longDateFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "tr_TR")
+        f.locale = Fmt.appLocale
         f.dateStyle = .long
         f.timeStyle = .medium
         return f
@@ -189,12 +189,12 @@ enum Fmt {
         guard let d else { return "" }
         let s = max(0, Date().timeIntervalSince(d))
         switch s {
-        case ..<60: return "şimdi"
-        case ..<3600: return "\(Int(s / 60))dk"
-        case ..<86400: return "\(Int(s / 3600))sa"
-        case ..<(86400 * 31): return "\(Int(s / 86400))g"
-        case ..<(86400 * 365): return "\(Int(s / (86400 * 30.4)))ay"
-        default: return "\(Int(s / (86400 * 365)))y"
+        case ..<60: return L("now")
+        case ..<3600: return L("%dmin", Int(s / 60))
+        case ..<86400: return L("%dh", Int(s / 3600))
+        case ..<(86400 * 31): return L("%dd", Int(s / 86400))
+        case ..<(86400 * 365): return L("%dmo", Int(s / (86400 * 30.4)))
+        default: return L("%dy", Int(s / (86400 * 365)))
         }
     }
 

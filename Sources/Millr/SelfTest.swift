@@ -59,7 +59,7 @@ final class SelfTest {
             }
         }
         step("geri al: kopyalama") { next in
-            self.check(self.wc.undo.canUndo && self.wc.undo.undoActionName == "Kopyalama", "undo adı = Kopyalama")
+            self.check(self.wc.undo.canUndo && self.wc.undo.undoActionName == L("Copying"), "undo adı = \(L("Copying"))")
             self.wc.undo.undo()
             self.wait(until: { self.count(dst) == 0 }) {
                 self.check(self.count(dst) == 0, "undo copy: kopyalar Çöp'e gitti")

@@ -1,0 +1,6 @@
+/* Turkish texts of the privacy prompts (Info.plist usage descriptions). */
+"NSDesktopFolderUsageDescription" = "Masaüstündeki dosyaları göstermek için.";
+"NSDocumentsFolderUsageDescription" = "Belgeler klasörünü göstermek için.";
+"NSDownloadsFolderUsageDescription" = "İndirilenler klasörünü göstermek için.";
+"NSRemovableVolumesUsageDescription" = "Harici diskleri göstermek için.";
+"NSNetworkVolumesUsageDescription" = "Ağ disklerini göstermek için.";

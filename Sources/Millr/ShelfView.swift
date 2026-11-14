@@ -59,10 +59,10 @@ final class ShelfView: NSView, NSDraggingSource {
     private var downTarget: Hit = .none
     private var dragging = false
 
-    private let titleLabel = label("RAF", size: 10.5, weight: .bold)
-    private lazy var listBtn = symbolButton("list.bullet", "Listeyi göster/gizle", target: self, action: #selector(toggleList))
-    private lazy var menuBtn = symbolButton("ellipsis.circle", "Raf işlemleri", target: self, action: #selector(showMenu(_:)))
-    private lazy var clearBtn = symbolButton("xmark.circle", "Rafı temizle", target: self, action: #selector(clearAll))
+    private let titleLabel = label(L("SHELF"), size: 10.5, weight: .bold)
+    private lazy var listBtn = symbolButton("list.bullet", L("Show/hide list"), target: self, action: #selector(toggleList))
+    private lazy var menuBtn = symbolButton("ellipsis.circle", L("Shelf actions"), target: self, action: #selector(showMenu(_:)))
+    private lazy var clearBtn = symbolButton("xmark.circle", L("Clear shelf"), target: self, action: #selector(clearAll))
 
     private enum Hit: Equatable { case none, box, row(Int), remove(Int) }
 
@@ -115,7 +115,7 @@ final class ShelfView: NSView, NSDraggingSource {
         menuBtn.isHidden = empty
         clearBtn.isHidden = empty
         listBtn.contentTintColor = expanded ? Theme.current.accent : Theme.current.secondary
-        titleLabel.stringValue = empty ? "RAF" : "RAF  ·  \(items.count)"
+        titleLabel.stringValue = empty ? L("SHELF") : L("SHELF") + "  ·  \(items.count)"
         var h = Self.headerH + Self.boxH + 4
         if visibleRows > 0 { h += CGFloat(visibleRows) * Self.rowH + 6 }
         if expanded, items.count > Self.maxRows { h += Self.rowH }
@@ -181,7 +181,7 @@ final class ShelfView: NSView, NSDraggingSource {
                 sym.draw(in: NSRect(x: box.midX - sym.size.width / 2, y: box.minY + 12,
                                     width: sym.size.width, height: sym.size.height))
             }
-            drawText("Dosyaları buraya bırak", in: NSRect(x: box.minX, y: box.minY + 40, width: box.width, height: 16),
+            drawText(L("Drop files here"), in: NSRect(x: box.minX, y: box.minY + 40, width: box.width, height: 16),
                      font: .systemFont(ofSize: 11), color: tint, align: .center)
             return
         }
@@ -204,12 +204,12 @@ final class ShelfView: NSView, NSDraggingSource {
         }
         let tx = box.minX + 10 + iconSize + CGFloat(shown.count - 1) * 7 + 10
         let tw = box.maxX - tx - 8
-        let title = items.count == 1 ? items[0].lastPathComponent : "\(items.count) öğe"
+        let title = items.count == 1 ? items[0].lastPathComponent : Fmt.items(items.count)
         drawText(title, in: NSRect(x: tx, y: box.minY + 12, width: tw, height: 16),
                  font: .systemFont(ofSize: 12, weight: .semibold), color: t.text)
         drawText(totalSize(), in: NSRect(x: tx, y: box.minY + 29, width: tw, height: 14),
                  font: FileRowView.smallFont, color: t.secondary)
-        drawText("⌘ basılı: taşı", in: NSRect(x: tx, y: box.minY + 45, width: tw, height: 14),
+        drawText(L("⌘ held: move"), in: NSRect(x: tx, y: box.minY + 45, width: tw, height: 14),
                  font: .systemFont(ofSize: 10), color: t.tertiary)
 
         for i in 0..<visibleRows {
@@ -233,7 +233,7 @@ final class ShelfView: NSView, NSDraggingSource {
         }
         if expanded, items.count > Self.maxRows {
             let r = rowRect(Self.maxRows)
-            drawText("+\(items.count - Self.maxRows) öğe daha", in: NSRect(x: r.minX + 28, y: r.minY + 3, width: r.width - 30, height: 16),
+            drawText(L("+%d more", items.count - Self.maxRows), in: NSRect(x: r.minX + 28, y: r.minY + 3, width: r.width - 30, height: 16),
                      font: .systemFont(ofSize: 11), color: t.tertiary)
         }
     }
@@ -365,22 +365,22 @@ final class ShelfView: NSView, NSDraggingSource {
     private func buildMenu() -> NSMenu {
         let urls = items
         let m = NSMenu()
-        m.addItem(ClosureMenuItem("Aktif Klasöre Kopyala", symbol: "doc.on.doc") { [weak self] in self?.onTransfer?(urls, false) })
-        m.addItem(ClosureMenuItem("Aktif Klasöre Taşı", symbol: "folder") { [weak self] in self?.onTransfer?(urls, true) })
+        m.addItem(ClosureMenuItem(L("Copy to Active Folder"), symbol: "doc.on.doc") { [weak self] in self?.onTransfer?(urls, false) })
+        m.addItem(ClosureMenuItem(L("Move to Active Folder"), symbol: "folder") { [weak self] in self?.onTransfer?(urls, true) })
         m.addItem(.separator())
-        m.addItem(ClosureMenuItem("Finder'da Göster", symbol: "magnifyingglass") {
+        m.addItem(ClosureMenuItem(L("Show in Finder"), symbol: "magnifyingglass") {
             NSWorkspace.shared.activateFileViewerSelecting(urls)
         })
-        m.addItem(ClosureMenuItem("Yolları Kopyala", symbol: "link") {
+        m.addItem(ClosureMenuItem(L("Copy Paths"), symbol: "link") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
         })
-        m.addItem(ClosureMenuItem("Paylaş…", symbol: "square.and.arrow.up") { [weak self] in
+        m.addItem(ClosureMenuItem(L("Share…"), symbol: "square.and.arrow.up") { [weak self] in
             guard let self else { return }
             NSSharingServicePicker(items: urls).show(relativeTo: self.boxRect, of: self, preferredEdge: .maxX)
         })
         m.addItem(.separator())
-        m.addItem(ClosureMenuItem("Rafı Temizle", symbol: "xmark.circle") { Shelf.shared.clear() })
+        m.addItem(ClosureMenuItem(L("Clear Shelf"), symbol: "xmark.circle") { Shelf.shared.clear() })
         return m
     }
 }

@@ -642,23 +642,23 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSMe
             }
             return b
         }
-        let up = btn("arrow.up", "Üst klasör (⌘↑)", .up)
-        backBtn = btn("arrow.left", "Geri (⌘[)", .back)
-        forwardBtn = btn("arrow.right", "İleri (⌘])", .forward)
-        let newFolder = btn("folder.badge.plus", "Yeni klasör (F7)", .newFolder)
+        let up = btn("arrow.up", L("Enclosing folder (⌘↑)"), .up)
+        backBtn = btn("arrow.left", L("Back (⌘[)"), .back)
+        forwardBtn = btn("arrow.right", L("Forward (⌘])"), .forward)
+        let newFolder = btn("folder.badge.plus", L("New folder (F7)"), .newFolder)
         let left = NSStackView(views: [up, backBtn!, forwardBtn!, newFolder])
         left.spacing = 2
         left.translatesAutoresizingMaskIntoConstraints = true
 
         let sort = NSPopUpButton(frame: .zero, pullsDown: true)
         sort.isBordered = false
-        sort.toolTip = "Bu klasörün sıralaması"
+        sort.toolTip = L("Sorting for this folder")
         (sort.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
         sort.widthAnchor.constraint(equalToConstant: 28).isActive = true
         sortBtn = sort
-        detailsBtn = btn("list.bullet.rectangle", "Detay görünümü", .toggleDetails)
-        hiddenBtn = btn("eye.slash", "Gizli dosyalar (⌘⇧.)", .toggleHidden)
-        let reload = btn("arrow.clockwise", "Yenile (⌘R)", .reload)
+        detailsBtn = btn("list.bullet.rectangle", L("Details view"), .toggleDetails)
+        hiddenBtn = btn("eye.slash", L("Hidden files (⌘⇧.)"), .toggleHidden)
+        let reload = btn("arrow.clockwise", L("Reload (⌘R)"), .reload)
         let right = NSStackView(views: [sort, detailsBtn!, hiddenBtn!, reload])
         right.spacing = 2
         right.translatesAutoresizingMaskIntoConstraints = true
@@ -686,7 +686,7 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSMe
             let cur = p.sort(for: path)
             let m = NSMenu()
             let title = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-            title.image = NSImage(systemSymbolName: "arrow.up.arrow.down", accessibilityDescription: "Sıralama")
+            title.image = NSImage(systemSymbolName: "arrow.up.arrow.down", accessibilityDescription: L("Sort"))
             m.addItem(title)
             for k in SortKey.allCases {
                 let i = ClosureMenuItem(k.title) { Prefs.shared.setSort(k, ascending: cur.ascending, for: path) }
@@ -694,9 +694,9 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSMe
                 m.addItem(i)
             }
             m.addItem(.separator())
-            let asc = ClosureMenuItem("Artan") { Prefs.shared.setSort(cur.key, ascending: true, for: path) }
+            let asc = ClosureMenuItem(L("Ascending")) { Prefs.shared.setSort(cur.key, ascending: true, for: path) }
             asc.state = cur.ascending ? .on : .off
-            let desc = ClosureMenuItem("Azalan") { Prefs.shared.setSort(cur.key, ascending: false, for: path) }
+            let desc = ClosureMenuItem(L("Descending")) { Prefs.shared.setSort(cur.key, ascending: false, for: path) }
             desc.state = cur.ascending ? .off : .on
             m.addItem(asc)
             m.addItem(desc)
@@ -800,11 +800,11 @@ final class ColumnView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSMe
         }
         table.reloadData()
         if folder.isLoading {
-            countLabel.stringValue = allItems.isEmpty ? "yükleniyor…" : "\(allItems.count) öğe · yenileniyor…"
+            countLabel.stringValue = allItems.isEmpty ? L("loading…") : L("%@ · refreshing…", Fmt.items(allItems.count))
         } else if folder.loadError != nil {
-            countLabel.stringValue = "erişim yok"
+            countLabel.stringValue = L("no access")
         } else {
-            countLabel.stringValue = filter.isEmpty ? "\(items.count) öğe" : "\(items.count)/\(allItems.count)"
+            countLabel.stringValue = filter.isEmpty ? Fmt.items(items.count) : "\(items.count)/\(allItems.count)"
         }
         filterPill.update(text: filter, matches: items.count, total: allItems.count)
         filterPill.isHidden = filter.isEmpty
@@ -1019,15 +1019,15 @@ final class FileRowView: NSTableCellView {
         var nameRight: CGFloat
 
         if detailed {
-            let L = DetailLayout(width: f.width)
-            drawRight(node.sizeText, in: L.size, attrs: small)
-            if let d = L.date { drawRight(Fmt.shortDateFormatter.string(from: node.modified ?? .distantPast), in: d, attrs: small) }
-            if let a = L.age, let (s, color) = Fmt.ageBadge(node.modified) { drawBadge(s, color: color, in: a, emph: emph) }
-            if let e = L.ext {
+            let layout = DetailLayout(width: f.width)
+            drawRight(node.sizeText, in: layout.size, attrs: small)
+            if let d = layout.date { drawRight(Fmt.shortDateFormatter.string(from: node.modified ?? .distantPast), in: d, attrs: small) }
+            if let a = layout.age, let (s, color) = Fmt.ageBadge(node.modified) { drawBadge(s, color: color, in: a, emph: emph) }
+            if let e = layout.ext {
                 let t = node.isDirectory ? "[DIR]" : (node.url.pathExtension.isEmpty ? "" : node.url.pathExtension.lowercased())
                 drawLeft(t, in: e, attrs: small)
             }
-            nameRight = L.name.upperBound
+            nameRight = layout.name.upperBound
         } else {
             var right = f.maxX - 12
             if node.isDirectory, let img = Self.chevron {
@@ -1140,14 +1140,14 @@ final class DetailHeaderView: NSView {
     override var isFlipped: Bool { true }
 
     private func parts() -> [(String, NSRect.ClosedRange, SortKey, Bool)] {
-        let L = DetailLayout(width: bounds.width)
+        let layout = DetailLayout(width: bounds.width)
         guard showsLabels else { return [] }
-        let nameStart = max(L.name.lowerBound, leadingInset)
-        var p: [(String, NSRect.ClosedRange, SortKey, Bool)] = [("Ad", nameStart...max(nameStart + 1, L.name.upperBound), .name, false)]
-        if let e = L.ext { p.append(("Tür", e, .kind, false)) }
-        if let a = L.age { p.append(("Yaş", a, .modified, true)) }
-        if let d = L.date { p.append(("Tarih", d, .modified, true)) }
-        p.append(("Boyut", L.size, .size, true))
+        let nameStart = max(layout.name.lowerBound, leadingInset)
+        var p: [(String, NSRect.ClosedRange, SortKey, Bool)] = [(L("Name"), nameStart...max(nameStart + 1, layout.name.upperBound), .name, false)]
+        if let e = layout.ext { p.append((L("Kind"), e, .kind, false)) }
+        if let a = layout.age { p.append((L("Age"), a, .modified, true)) }
+        if let d = layout.date { p.append((L("Date"), d, .modified, true)) }
+        p.append((L("Size"), layout.size, .size, true))
         return p
     }
 
@@ -1159,7 +1159,7 @@ final class DetailHeaderView: NSView {
         NSRect(x: 10, y: bounds.maxY - 1, width: bounds.width - 20, height: 1).fill()
         let state = sortState()
         for (title, r, key, right) in parts() {
-            let active = state.key == key && !(title == "Yaş")
+            let active = state.key == key && !(title == L("Age"))
             let t = title + (active ? (state.ascending ? " ▲" : " ▼") : "")
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: Fonts.rounded(10.5, active ? .bold : .medium),
@@ -1249,7 +1249,7 @@ final class DropBadgeView: NSView {
 
     func configure(move: Bool, target: String) {
         icon.image = NSImage(systemSymbolName: move ? "arrow.right.circle.fill" : "plus.circle.fill", accessibilityDescription: nil)
-        text.stringValue = (move ? "Taşı → " : "Kopyala → ") + target
+        text.stringValue = (move ? L("Move → ") : L("Copy → ")) + target
         layer?.backgroundColor = (move ? NSColor.systemOrange : NSColor.systemGreen).cgColor
     }
 }
@@ -1334,7 +1334,7 @@ final class FilterPillView: NSView {
         (text as NSString).draw(with: NSRect(x: 32, y: (bounds.height - th) / 2, width: max(0, closeX - 16 - cs.width - 32), height: th),
                                 options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: tAttrs)
 
-        if let x = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Filtreyi temizle")?
+        if let x = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: L("Clear filter"))?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .regular).applying(.init(paletteColors: [white.withAlphaComponent(0.85)]))) {
             x.draw(in: NSRect(x: closeX, y: (bounds.height - x.size.height) / 2, width: x.size.width, height: x.size.height),
                    from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
