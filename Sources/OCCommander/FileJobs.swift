@@ -186,21 +186,47 @@ final class FileJobs {
         run(job, work: { [weak self] job in
             guard let self else { return }
             job.setTotals(bytes: 0, files: pairs.count)
+            var failures: [String] = []
             for p in pairs {
                 guard job.checkpoint() else { return }
                 job.beginItem(p.from.lastPathComponent)
-                guard self.fm.fileExists(atPath: p.from.path) || (try? p.from.checkResourceIsReachable()) == true else { continue }
-                let dest = FileOps.exists(p.to) ? FileOps.uniqueURL(for: p.to.lastPathComponent, in: p.to.deletingLastPathComponent()) : p.to
-                try? self.fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-                if FileOps.sameVolume(p.from, dest.deletingLastPathComponent()) {
-                    try self.fm.moveItem(at: p.from, to: dest)
-                } else {
-                    try self.copyItem(p.from, to: dest, job: job)
-                    try self.fm.removeItem(at: p.from)
+                guard FileOps.exists(p.from) else {
+                    failures.append("“\(p.from.lastPathComponent)” bulunamadı")
+                    continue
                 }
-                job.ops.append(.moved(from: p.from, to: dest))
-                job.results.append(dest)
-                job.fileFinished(size: 0)
+                do {
+                    try? self.fm.createDirectory(at: p.to.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    let dest: URL
+                    if FileOps.sameVolume(p.from, p.to.deletingLastPathComponent()) {
+                        if FileOps.exists(p.to) && FileOps.sameItem(p.from, p.to) {
+                            // Case-only rename (a.txt <-> A.txt) on a case-insensitive volume: same file.
+                            try FileOps.renamePlain(p.from, p.to)
+                            dest = p.to
+                        } else {
+                            dest = try FileOps.place(p.to) { try FileOps.renameExcl(p.from, $0) }
+                        }
+                        job.ops.append(.moved(from: p.from, to: dest))
+                    } else {
+                        dest = try self.copyIntoPlace(p.from, preferred: p.to, job: job)
+                        guard !job.isCancelled else { try? self.fm.removeItem(at: dest); return }
+                        do {
+                            try self.fm.removeItem(at: p.from)
+                        } catch {
+                            job.ops.append(.created(dest))
+                            throw error
+                        }
+                        job.ops.append(.moved(from: p.from, to: dest))
+                    }
+                    job.results.append(dest)
+                    job.fileFinished(size: 0)
+                } catch {
+                    if job.isCancelled { return }
+                    failures.append("“\(p.from.lastPathComponent)”: \(error.localizedDescription)")
+                }
+            }
+            if !failures.isEmpty {
+                throw NSError(domain: "OCJobs", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                    "\(failures.count) öğe geri alınamadı. " + failures.prefix(3).joined(separator: "; ")])
             }
         }, completion: completion)
     }
@@ -236,15 +262,19 @@ final class FileJobs {
         var applyAll: ConflictChoice?
         for (i, src) in urls.enumerated() {
             guard job.checkpoint() else { return }
-            let srcDir = src.deletingLastPathComponent().standardizedFileURL.path
-            if move && srcDir == dir.standardizedFileURL.path { continue }
+            let srcDir = src.deletingLastPathComponent()
+            let intoOwnFolder = srcDir.standardizedFileURL.path == dir.standardizedFileURL.path || FileOps.sameItem(srcDir, dir)
+            if move && intoOwnFolder { continue }
             job.beginItem(src.lastPathComponent)
 
             var dest = dir.appendingPathComponent(src.lastPathComponent)
+            var replacing: URL?
             if FileOps.exists(dest) {
                 let choice: ConflictChoice
-                if srcDir == dir.standardizedFileURL.path {
-                    choice = .keepBoth        // copying into its own folder
+                if intoOwnFolder || FileOps.sameItem(src, dest) || FileOps.contains(dest, src) {
+                    // Copying into its own folder, or the "existing" item is the source (or holds it):
+                    // replacing would throw the source away.
+                    choice = .keepBoth
                 } else if let a = applyAll {
                     choice = a
                 } else {
@@ -256,29 +286,84 @@ final class FileJobs {
                 case .cancel: job.cancel(); return
                 case .skip: job.finishItem(size: sizes[i]); continue
                 case .keepBoth: dest = FileOps.uniqueURL(for: src.lastPathComponent, in: dir)
-                case .replace:
-                    var trashed: NSURL?
-                    try fm.trashItem(at: dest, resultingItemURL: &trashed)
-                    if let t = trashed as URL? { job.ops.append(.moved(from: dest, to: t)) }
+                case .replace: replacing = dest
                 }
             }
 
             if move && renames[i] {
-                try fm.moveItem(at: src, to: dest)
+                if let old = replacing {
+                    let trashed = try trash(old, job: job)
+                    do { try FileOps.renameExcl(src, dest) } catch {
+                        try? fm.moveItem(at: trashed, to: old)      // put the replaced item back
+                        job.ops.removeLast()
+                        throw error
+                    }
+                } else {
+                    dest = try FileOps.place(dest) { try FileOps.renameExcl(src, $0) }
+                }
                 job.fileFinished(size: 0)
             } else {
-                do {
-                    try copyItem(src, to: dest, job: job)
-                } catch {
-                    try? fm.removeItem(at: dest)       // drop the partial copy
-                    if job.isCancelled { return }
-                    throw error
+                // The copy lands under a temporary name first; the existing item is replaced only
+                // after the copy is complete, and a failed copy never touches anything else.
+                if let old = replacing {
+                    let tmp = try copyToTemp(src, in: dir, job: job)
+                    guard !job.isCancelled else { try? fm.removeItem(at: tmp); return }
+                    let trashed: URL
+                    do { trashed = try trash(old, job: job) } catch { try? fm.removeItem(at: tmp); throw error }
+                    do { try FileOps.renameExcl(tmp, dest) } catch {
+                        try? fm.moveItem(at: trashed, to: old)
+                        job.ops.removeLast()
+                        try? fm.removeItem(at: tmp)
+                        throw error
+                    }
+                } else {
+                    dest = try copyIntoPlace(src, preferred: dest, job: job)
+                    guard !job.isCancelled else { try? fm.removeItem(at: dest); return }
                 }
-                if move { try fm.removeItem(at: src) }
+                if move {
+                    do { try fm.removeItem(at: src) } catch {
+                        job.ops.append(.created(dest))   // the copy stays undoable
+                        throw error
+                    }
+                }
             }
             job.ops.append(move ? .moved(from: src, to: dest) : .created(dest))
             job.results.append(dest)
             job.finishItem(size: sizes[i])
+        }
+    }
+
+    /// Moves `u` to the Trash and records it; returns where it went.
+    private func trash(_ u: URL, job: FileJob) throws -> URL {
+        var trashed: NSURL?
+        try fm.trashItem(at: u, resultingItemURL: &trashed)
+        guard let t = trashed as URL? else { throw CocoaError(.fileWriteUnknown) }
+        job.ops.append(.moved(from: u, to: t))
+        return t
+    }
+
+    /// Copies `src` to a hidden temporary name inside `dir`. On failure the partial copy is removed.
+    private func copyToTemp(_ src: URL, in dir: URL, job: FileJob) throws -> URL {
+        let tmp = dir.appendingPathComponent(".oc-part-\(UUID().uuidString.prefix(8))-\(src.lastPathComponent)")
+        do {
+            try copyItem(src, to: tmp, job: job)
+        } catch {
+            try? fm.removeItem(at: tmp)
+            throw error
+        }
+        return tmp
+    }
+
+    /// Copies `src` and gives it `preferred`'s name, or the next free "name N" if that is taken by
+    /// then (another job or app). Never overwrites.
+    private func copyIntoPlace(_ src: URL, preferred: URL, job: FileJob) throws -> URL {
+        let tmp = try copyToTemp(src, in: preferred.deletingLastPathComponent(), job: job)
+        if job.isCancelled { try? fm.removeItem(at: tmp); throw CocoaError(.userCancelled) }
+        do {
+            return try FileOps.place(preferred) { try FileOps.renameExcl(tmp, $0) }
+        } catch {
+            try? fm.removeItem(at: tmp)
+            throw error
         }
     }
 
@@ -292,12 +377,22 @@ final class FileJobs {
 
     private final class CopyContext {
         let job: FileJob
+        var failedPath: String?
+        var failedErrno: Int32 = 0
         init(_ job: FileJob) { self.job = job }
     }
 
     private static let callback: copyfile_callback_t = { what, stage, state, src, _, ctx in
-        guard let ctx else { return Int32(COPYFILE_CONTINUE) }
-        let job = Unmanaged<CopyContext>.fromOpaque(ctx).takeUnretainedValue().job
+        guard let ctx else { return Int32(COPYFILE_QUIT) }
+        let c = Unmanaged<CopyContext>.fromOpaque(ctx).takeUnretainedValue()
+        let job = c.job
+        // CONTINUE on an error makes copyfile skip the item and still report success; a move
+        // would then delete a source that was never copied. Stop the whole copy instead.
+        if stage == Int32(COPYFILE_ERR) {
+            c.failedErrno = errno
+            c.failedPath = src.map { String(cString: $0) }
+            return Int32(COPYFILE_QUIT)
+        }
         guard job.checkpoint() else { return Int32(COPYFILE_QUIT) }
         switch (what, stage) {
         case (Int32(COPYFILE_RECURSE_FILE), Int32(COPYFILE_START)):
@@ -324,16 +419,27 @@ final class FileJobs {
         copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CB), unsafeBitCast(Self.callback, to: UnsafeRawPointer.self))
         copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CTX), unmanaged.toOpaque())
         let flags = Self.COPY_ALL | Self.COPY_RECURSIVE | Self.COPY_NOFOLLOW_SRC | Self.COPY_CLONE
-        if copyfile(src.path, dst.path, state, copyfile_flags_t(flags)) != 0 {
-            if job.isCancelled { throw CocoaError(.userCancelled) }
-            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
-                          userInfo: [NSFilePathErrorKey: src.path])
+        let r = copyfile(src.path, dst.path, state, copyfile_flags_t(flags))
+        let code = errno
+        if r != 0 || ctx.failedPath != nil {
+            if job.isCancelled && ctx.failedPath == nil { throw CocoaError(.userCancelled) }
+            let path = ctx.failedPath ?? src.path
+            let posix = ctx.failedPath != nil ? ctx.failedErrno : code
+            let reason = String(cString: strerror(posix == 0 ? EIO : posix))
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(posix == 0 ? EIO : posix), userInfo: [
+                NSFilePathErrorKey: path,
+                NSLocalizedDescriptionKey: "“\((path as NSString).lastPathComponent)” kopyalanamadı: \(reason)",
+            ])
         }
     }
 
     // MARK: Conflicts
 
+    /// Debug: answers conflict dialogs without showing them (stress test).
+    var testConflictChoice: ConflictChoice?
+
     private func askConflict(name: String, into dir: URL, remaining: Int) -> (ConflictChoice, Bool) {
+        if let c = testConflictChoice { return (c, true) }
         var result: (ConflictChoice, Bool) = (.cancel, false)
         DispatchQueue.main.sync {
             let alert = NSAlert()

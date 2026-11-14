@@ -361,6 +361,146 @@ final class StressTest {
             }
             copyNext()
         }
+        step("hata yolları (düzeltmeler)") { next in
+            let fa = self.a.appendingPathComponent("fix"), fb = self.b.appendingPathComponent("fix")
+            try? self.fm.removeItem(at: fa); try? self.fm.removeItem(at: fb)
+            try? self.fm.createDirectory(at: fa, withIntermediateDirectories: true)
+            try? self.fm.createDirectory(at: fb, withIntermediateDirectories: true)
+            func write(_ u: URL, _ s: String) { try? s.write(to: u, atomically: false, encoding: .utf8) }
+            func leftovers(_ d: URL) -> [String] {
+                ((try? self.fm.contentsOfDirectory(atPath: d.path)) ?? []).filter { $0.hasPrefix(".oc-part") }
+            }
+            let jobs = FileJobs.shared
+            var queue: [(@escaping () -> Void) -> Void] = []
+
+            // 1. Cross-volume move of a folder holding an unreadable file must fail and keep the source.
+            queue.append { done in
+                let src = fa.appendingPathComponent("korumalı")
+                try? self.fm.createDirectory(at: src, withIntermediateDirectories: true)
+                write(src.appendingPathComponent("açık.txt"), "a")
+                let locked = src.appendingPathComponent("kilitli.txt")
+                write(locked, "gizli")
+                chmod(locked.path, 0)
+                jobs.transfer([src], to: fb, move: true) { job in
+                    chmod(locked.path, 0o644)
+                    self.check(FileJobs.isFailure(job.state), "okunamayan dosyalı taşıma hata veriyor (\(job.state))")
+                    self.check(self.exists(locked) && self.exists(src.appendingPathComponent("açık.txt")), "taşıma başarısız olunca kaynak yerinde")
+                    self.check(!self.exists(fb.appendingPathComponent("korumalı")) && leftovers(fb).isEmpty, "hedefte yarım kopya kalmadı")
+                    done()
+                }
+            }
+            // 2. Replace, cancelled mid-copy: the existing item stays untouched.
+            queue.append { done in
+                let old = fb.appendingPathComponent("b0.bin")
+                write(old, "eski")
+                jobs.testConflictChoice = .replace
+                jobs.transfer([big.appendingPathComponent("b0.bin")], to: fb, move: false) { job in
+                    jobs.testConflictChoice = nil
+                    self.check(job.state == .cancelled, "değiştir + iptal: iş iptal edildi")
+                    self.check((try? String(contentsOf: old, encoding: .utf8)) == "eski", "değiştir iptal edilince eski dosya yerinde")
+                    self.check(leftovers(fb).isEmpty, "iptal sonrası geçici kopya silindi")
+                    done()
+                }
+                let job = jobs.jobs.last!
+                self.wait(until: { job.snapshot.done > 50 << 20 || job.isFinished }) { job.cancel() }
+            }
+            // 3. Replace onto itself through a symlinked folder must not trash the source.
+            queue.append { done in
+                let f = fa.appendingPathComponent("kendisi.txt")
+                write(f, "kaynak")
+                let link = fa.appendingPathComponent("bağ")
+                try? self.fm.createSymbolicLink(at: link, withDestinationURL: fa)
+                jobs.testConflictChoice = .replace
+                jobs.transfer([link.appendingPathComponent("kendisi.txt")], to: fa, move: false) { job in
+                    jobs.testConflictChoice = nil
+                    self.check((try? String(contentsOf: f, encoding: .utf8)) == "kaynak", "bağ üzerinden kendi üstüne değiştir: kaynak duruyor")
+                    self.check(job.results.first.map { $0.lastPathComponent != "kendisi.txt" } ?? false, "kopya yeni ada gitti (\(job.results.first?.lastPathComponent ?? "-"))")
+                    done()
+                }
+            }
+            // 4. Two jobs copying the same name into one folder at once: two separate copies.
+            queue.append { done in
+                let src = fa.appendingPathComponent("ikiz.txt")
+                write(src, String(repeating: "x", count: 1 << 20))
+                let dst = fb.appendingPathComponent("ikizler")
+                try? self.fm.createDirectory(at: dst, withIntermediateDirectories: true)
+                jobs.testConflictChoice = .keepBoth
+                var finished = 0
+                for _ in 0..<2 {
+                    jobs.transfer([src], to: dst, move: false) { _ in
+                        finished += 1
+                        guard finished == 2 else { return }
+                        jobs.testConflictChoice = nil
+                        let names = ((try? self.fm.contentsOfDirectory(atPath: dst.path)) ?? []).sorted()
+                        let sizes = names.compactMap { (try? self.fm.attributesOfItem(atPath: dst.appendingPathComponent($0).path))?[.size] as? Int }
+                        self.check(names.count == 2 && sizes.allSatisfy { $0 == 1 << 20 }, "aynı anda iki kopya: iki tam dosya \(names)")
+                        done()
+                    }
+                }
+            }
+            // 5. Name with a trailing number keeps it.
+            queue.append { done in
+                let r = fa.appendingPathComponent("Rapor 2024.pdf")
+                write(r, "r")
+                let u = FileOps.uniqueURL(for: "Rapor 2024.pdf", in: fa).lastPathComponent
+                self.check(u == "Rapor 2024 2.pdf", "sondaki sayı korunuyor (\(u))")
+                done()
+            }
+            // 6. Undo of a case-only rename restores the exact old name.
+            queue.append { done in
+                let f = fa.appendingPathComponent("harf.txt")
+                write(f, "h")
+                guard let dest = try? FileOps.rename(f, to: "HARF.txt") else { self.check(false, "büyük harf ad değişikliği"); done(); return }
+                self.wc.recordUndo([.moved(from: f, to: dest)], name: "test")
+                self.wc.undo.undo()
+                self.wait(until: { !jobs.hasActive }) {
+                    let names = (try? self.fm.contentsOfDirectory(atPath: fa.path)) ?? []
+                    self.check(names.contains("harf.txt") && !names.contains { $0.hasPrefix("harf 2") }, "büyük/küçük harf geri alma eski adı veriyor")
+                    done()
+                }
+            }
+            // 7. Archive whose extraction prints a warning per entry must not hang.
+            queue.append { done in
+                let zip = fa.appendingPathComponent("uyarılı.zip")
+                let py = "import zipfile,sys\nz=zipfile.ZipFile(sys.argv[1],'w')\ni=zipfile.ZipInfo('ln');i.external_attr=0o120777<<16\nz.writestr(i,'/tmp')\n[z.writestr('ln/f%d'%n,'x') for n in range(3000)]\nz.close()"
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                p.arguments = ["-I", "-c", py, zip.path]
+                try? p.run(); p.waitUntilExit()
+                let t0 = Date()
+                Archives.browse(zip) { r in
+                    let secs = Date().timeIntervalSince(t0)
+                    if case .failure = r {} else { self.check(false, "uyarılı arşiv açılmamalıydı") }
+                    self.check(secs < 20, String(format: "çok uyarılı arşiv takılmadı (%.1f sn)", secs))
+                    done()
+                }
+            }
+            // 8. Preview text read refuses symlinks and FIFOs.
+            queue.append { done in
+                let zero = fa.appendingPathComponent("sıfır.txt"), fifo = fa.appendingPathComponent("boru.txt")
+                try? self.fm.createSymbolicLink(atPath: zero.path, withDestinationPath: "/dev/zero")
+                mkfifo(fifo.path, 0o644)
+                let t0 = Date()
+                let a = InfoBuilder.readRegularFile(zero, limit: 5_000_000), b = InfoBuilder.readRegularFile(fifo, limit: 5_000_000)
+                self.check(a == nil && b == nil && Date().timeIntervalSince(t0) < 1, "önizleme /dev/zero bağını ve FIFO'yu okumuyor")
+                done()
+            }
+            // 9. Compressing names that start with "-".
+            queue.append { done in
+                let d1 = fa.appendingPathComponent("-tire.txt"), d2 = fa.appendingPathComponent("düz.txt")
+                write(d1, "1"); write(d2, "2")
+                FileOps.compress([d1, d2], in: fa) { urls, err in
+                    self.check(err == nil && urls.count == 1, "'-' ile başlayan adlar sıkıştırılıyor \(err.map { "\($0)" } ?? "")")
+                    done()
+                }
+            }
+            func run() {
+                guard !queue.isEmpty else { next(); return }
+                let f = queue.removeFirst()
+                f { DispatchQueue.main.async(execute: run) }
+            }
+            run()
+        }
         step("20k girişli arşiv") { next in
             let t0 = Date()
             Archives.browse(zip) { r in

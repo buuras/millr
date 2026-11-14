@@ -268,6 +268,17 @@ final class SizeJob {
 
 /// Collects everything we know about a file: file system, Spotlight metadata, image/PDF properties.
 enum InfoBuilder {
+    /// Reads at most `limit` bytes of a regular file. Symlinks (e.g. to /dev/zero), FIFOs and devices
+    /// are refused: following or blocking on them would hang or exhaust memory.
+    static func readRegularFile(_ url: URL, limit: Int) -> Data? {
+        let fd = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard fd >= 0 else { return nil }
+        let h = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        var st = stat()
+        guard fstat(fd, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG, st.st_size <= limit else { return nil }
+        return try? h.read(upToCount: limit)
+    }
+
     typealias Rows = [(String, String)]
 
     static func multi(_ nodes: [FileNode]) -> [(String, Rows)] {
@@ -414,9 +425,9 @@ enum InfoBuilder {
                 if let t = a[PDFDocumentAttribute.creatorAttribute] as? String, !t.isEmpty { doc.append(("Oluşturan", t)) }
             }
         }
-        if !node.isDirectory && !node.isPackage && node.size < 5_000_000,
+        if !node.isDirectory && !node.isPackage && !node.isSymlink && node.size < 5_000_000,
            let type = UTType(filenameExtension: ext), type.conforms(to: .text),
-           let data = try? Data(contentsOf: url), let s = String(data: data, encoding: .utf8) {
+           let data = Self.readRegularFile(url, limit: 5_000_000), let s = String(data: data, encoding: .utf8) {
             var lines = 0
             s.enumerateLines { _, _ in lines += 1 }
             doc.append(("Satır", lines.formatted()))

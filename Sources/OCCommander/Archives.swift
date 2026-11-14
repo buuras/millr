@@ -61,15 +61,9 @@ enum Archives {
             try fm.createDirectory(at: root, withIntermediateDirectories: true)
             p.executableURL = URL(fileURLWithPath: "/usr/bin/bsdtar")
             p.arguments = ["-x", "-f", archive.path, "-C", root.path]
-            let err = Pipe()
-            p.standardError = err
-            p.standardOutput = FileHandle.nullDevice
-            try p.run()
-            p.waitUntilExit()
+            let msg = try runCollectingErrors(p)
             if job.isCancelled { try? fm.removeItem(at: dir); return }
             guard p.terminationStatus == 0 else {
-                let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 try? fm.removeItem(at: dir)
                 throw NSError(domain: "OCArchive", code: Int(p.terminationStatus),
                               userInfo: [NSLocalizedDescriptionKey: msg.isEmpty ? "Arşiv açılamadı." : msg])
@@ -98,7 +92,7 @@ enum Archives {
             p.arguments = ["attach", "-nobrowse", "-readonly", "-noverify", "-plist", image.path]
             let out = Pipe()
             p.standardOutput = out
-            p.standardError = Pipe()
+            p.standardError = FileHandle.nullDevice
             try p.run()
             let data = out.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
@@ -133,12 +127,13 @@ enum Archives {
             try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: false)
             p.executableURL = URL(fileURLWithPath: "/usr/bin/bsdtar")
             p.arguments = ["-x", "-f", archive.path, "-C", dest.path]
-            p.standardError = Pipe()
-            try p.run()
-            p.waitUntilExit()
+            let msg = try runCollectingErrors(p)
             if job.isCancelled || p.terminationStatus != 0 {
                 try? FileManager.default.removeItem(at: dest)
-                if !job.isCancelled { throw NSError(domain: "OCArchive", code: 3, userInfo: [NSLocalizedDescriptionKey: "Arşiv çıkarılamadı."]) }
+                if !job.isCancelled {
+                    throw NSError(domain: "OCArchive", code: 3,
+                                  userInfo: [NSLocalizedDescriptionKey: msg.isEmpty ? "Arşiv çıkarılamadı." : msg])
+                }
             }
         }, completion: { job in
             if job.state == .done { completion(.success(dest)) }
@@ -146,6 +141,24 @@ enum Archives {
                 completion(.failure(NSError(domain: "OCArchive", code: 3, userInfo: [NSLocalizedDescriptionKey: m])))
             }
         })
+    }
+
+    /// Runs `p` to the end with stderr going to a temporary file and returns its last lines.
+    /// A pipe read only after exit would deadlock once the tool writes more than the pipe holds
+    /// (~64 KB, e.g. one warning per entry of a large archive).
+    private static func runCollectingErrors(_ p: Process) throws -> String {
+        let log = FileManager.default.temporaryDirectory.appendingPathComponent("oc-\(UUID().uuidString).log")
+        FileManager.default.createFile(atPath: log.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: log) }
+        let h = try FileHandle(forWritingTo: log)
+        defer { try? h.close() }
+        p.standardError = h
+        p.standardOutput = FileHandle.nullDevice
+        try p.run()
+        p.waitUntilExit()
+        let data = (try? Data(contentsOf: log)) ?? Data()
+        let text = String(decoding: data.suffix(2000), as: UTF8.self)
+        return text.split(separator: "\n").suffix(3).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Drops browse caches older than three days.

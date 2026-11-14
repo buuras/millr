@@ -218,7 +218,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         var changed = Set<String>()
         var big = Set<String>()
         for p in paths {
-            guard let n = FileNode.existing(path: p), n.childrenLoaded else { continue }
+            // A folder still listing must be invalidated too, or its listing misses this change.
+            guard let n = FileNode.existing(path: p), n.childrenLoaded || n.isLoading else { continue }
             if n.children.count >= Self.bigFolder { big.insert(p) } else { changed.insert(p) }
         }
         FolderSizer.shared.invalidate(Set(paths))
@@ -321,37 +322,50 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
     /// moved items go back); the reverting registers the inverse, which becomes redo.
     func recordUndo(_ ops: [UndoOp], name: String) {
         guard !ops.isEmpty else { return }
+        register(name: name) { $0.revert(ops, name: name) }
+    }
+
+    private func register(name: String, _ action: @escaping (MainWindowController) -> Void) {
         let open = !undo.isUndoing && !undo.isRedoing
         if open { undo.beginUndoGrouping() }
-        undo.registerUndo(withTarget: self) { $0.revert(ops, name: name) }
+        undo.registerUndo(withTarget: self, handler: action)
         undo.setActionName(name)
         if open { undo.endUndoGrouping() }
     }
 
+    /// Filled when a revert job finishes: what really moved (names may differ, items may fail).
+    private final class OpsBox { var ops: [UndoOp] = [] }
+
     private func revert(_ ops: [UndoOp], name: String) {
-        var inverse: [UndoOp] = []
+        let done = OpsBox()
         var dirs = Set<URL>()
         // Created items first (they may occupy a place a replaced item returns to).
         for case .created(let u) in ops.reversed() {
             var trashed: NSURL?
-            if (try? FileManager.default.trashItem(at: u, resultingItemURL: &trashed)) != nil, let t = trashed as URL? {
-                inverse.append(.moved(from: u, to: t))
+            do {
+                try FileManager.default.trashItem(at: u, resultingItemURL: &trashed)
+                if let t = trashed as URL? { done.ops.append(.moved(from: u, to: t)) }
                 dirs.insert(u.deletingLastPathComponent())
+            } catch {
+                showError(error)
             }
         }
         var pairs: [(from: URL, to: URL)] = []
         for case .moved(let from, let to) in ops.reversed() {
             pairs.append((from: to, to: from))
-            inverse.append(.moved(from: to, to: from))
             dirs.insert(from.deletingLastPathComponent())
             dirs.insert(to.deletingLastPathComponent())
         }
-        recordUndo(inverse, name: name)
+        // The inverse (redo) must be registered now, inside the undo; it reads the box, which the
+        // job fills with the moves that actually happened.
+        register(name: name) { $0.revert(done.ops, name: name) }
         refresh(dirs: Array(dirs))
         guard !pairs.isEmpty else { return }
         FileJobs.shared.movePairs(pairs, title: "Geri alınıyor: \(name)") { [weak self] job in
+            done.ops += job.ops
             self?.refresh(dirs: Array(dirs))
             Shelf.shared.prune()
+            if case .failed(let m) = job.state { self?.showError(NSError(domain: "OCJobs", code: 1, userInfo: [NSLocalizedDescriptionKey: m])) }
             if let first = job.results.first { self?.activePane.reveal(first) }
         }
     }
