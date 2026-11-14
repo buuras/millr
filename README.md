@@ -8,7 +8,7 @@ and undo from the keyboard.
 
 Inspired by [OneCommander](https://onecommander.com). Not affiliated with it.
 
-The UI is currently in Turkish.
+The UI is available in English and Turkish. It follows the macOS language; choose another one in **View → Language**.
 
 ## Features
 
