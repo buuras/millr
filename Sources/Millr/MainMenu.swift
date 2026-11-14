@@ -90,6 +90,13 @@ enum MainMenu {
                 top.submenu = m
                 return top
             }(),
+            {
+                let top = NSMenuItem(title: L("Language"), action: nil, keyEquivalent: "")
+                let m = NSMenu()
+                for (i, o) in AppLanguage.options.enumerated() { m.addItem(item(o.title, #selector(W.setLanguage(_:)), tag: i)) }
+                top.submenu = m
+                return top
+            }(),
             item("Gizli Dosyaları Göster", #selector(W.toggleHidden(_:)), ".", [.command, .shift]),
             sortTop,
             .separator(),

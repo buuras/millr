@@ -266,6 +266,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         Prefs.shared.themeID = Theme.all[sender.tag].id
     }
 
+    @objc func setLanguage(_ sender: NSMenuItem) {
+        guard AppLanguage.options.indices.contains(sender.tag) else { return }
+        let code = AppLanguage.options[sender.tag].code
+        guard code != AppLanguage.chosen else { return }
+        AppLanguage.choose(code)
+        let alert = NSAlert()
+        alert.messageText = L("The new language applies after Millr restarts.")
+        alert.addButton(withTitle: L("Restart Now"))
+        alert.addButton(withTitle: L("Later"))
+        if alert.runModal() == .alertFirstButtonReturn { AppLanguage.relaunch() }
+    }
+
     @objc private func prefsChanged() {
         FileNode.invalidateAll()
         for p in panes where p.isViewLoaded { p.reloadKeepingSelection() }
@@ -811,6 +823,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuIt
         case #selector(toggleLayout(_:)): item.state = Prefs.shared.overUnder ? .on : .off
         case #selector(setTheme(_:)):
             item.state = Theme.all.indices.contains(item.tag) && Theme.all[item.tag].id == Theme.current.id ? .on : .off
+        case #selector(setLanguage(_:)):
+            item.state = AppLanguage.options.indices.contains(item.tag) && AppLanguage.options[item.tag].code == AppLanguage.chosen ? .on : .off
         case #selector(sortBy(_:)):
             item.state = Prefs.shared.sort(for: pane.currentFolder.path).key.rawValue == item.tag ? .on : .off
         case #selector(renameSelection(_:)): return pane.selectedNodes.count == 1
