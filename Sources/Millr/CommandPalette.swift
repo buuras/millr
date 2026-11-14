@@ -87,7 +87,7 @@ final class CommandPalette: NSObject, NSTableViewDataSource, NSTableViewDelegate
         field.drawsBackground = false
         field.focusRingType = .none
         field.font = .systemFont(ofSize: 20, weight: .regular)
-        field.placeholderString = "Klasöre git, komut çalıştır, yol yaz ( / ~ ) …"
+        field.placeholderString = L("Go to folder, run a command, type a path ( / ~ ) …")
         field.delegate = self
         field.translatesAutoresizingMaskIntoConstraints = false
 
@@ -114,7 +114,7 @@ final class CommandPalette: NSObject, NSTableViewDataSource, NSTableViewDelegate
         scroll.autohidesScrollers = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        hint.stringValue = "↩ aç   ⌘↩ diğer panelde aç   ↑↓ seç   esc kapat"
+        hint.stringValue = L("↩ open   ⌘↩ open in other pane   ↑↓ select   esc close")
         hint.alignment = .center
 
         [glass, field, sep, scroll, hint].forEach(bg.addSubview)
@@ -182,7 +182,7 @@ final class CommandPalette: NSObject, NSTableViewDataSource, NSTableViewDelegate
         addFolder(URL(fileURLWithPath: "/Applications"), boost: 3)
         for f in SmartFolders.shared.folders {
             let img = NSImage(systemSymbolName: f.symbol, accessibilityDescription: nil)
-            items.append(Item(kind: .folder, title: f.name, subtitle: "Akıllı klasör", icon: img, boost: 4) { [weak c] alt in
+            items.append(Item(kind: .folder, title: f.name, subtitle: L("Smart folder"), icon: img, boost: 4) { [weak c] alt in
                 c?.go(to: SmartFolders.shared.url(for: f), otherPane: alt)
             })
         }
@@ -190,7 +190,7 @@ final class CommandPalette: NSObject, NSTableViewDataSource, NSTableViewDelegate
         let folder = c.activePane.currentFolderNode
         for n in folder.children.prefix(2000) {
             let node = n
-            items.append(Item(kind: n.isDirectory ? .folder : .file, title: n.name, subtitle: "Bu klasörde",
+            items.append(Item(kind: n.isDirectory ? .folder : .file, title: n.name, subtitle: L("In this folder"),
                               icon: nil, iconPath: n.path, boost: 2) { [weak c] alt in
                 if node.isDirectory { c?.go(to: node.url, otherPane: alt) } else { c?.activePane.reveal(node.url) }
             })
@@ -204,7 +204,7 @@ final class CommandPalette: NSObject, NSTableViewDataSource, NSTableViewDelegate
         menu.update()
         for mi in menu.items where !mi.isSeparatorItem && !mi.isHidden {
             if let sub = mi.submenu {
-                if path.isEmpty && sub.title == "Pencere" { continue }
+                if path.isEmpty && sub.title == L("Window") { continue }
                 collectCommands(sub, path: path + [mi.title], into: &items)
                 continue
             }
@@ -273,12 +273,12 @@ final class CommandPalette: NSObject, NSTableViewDataSource, NSTableViewDelegate
             if raw.count >= 2, let c = controller {
                 let scope = c.activePane.currentFolder
                 let home = FileManager.default.homeDirectoryForCurrentUser
-                out.append(Item(kind: .search, title: "Spotlight'ta ara: “\(raw)”", subtitle: "Ana klasör (~) içinde, ad ve içerik",
+                out.append(Item(kind: .search, title: L("Search Spotlight: “%@”", raw), subtitle: L("In the home folder (~), name and content"),
                                 icon: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)) { [weak c] alt in
                     c?.go(to: SmartFolders.shared.search(raw, in: home), otherPane: alt)
                 })
                 if !VirtualFolders.isVirtual(scope) {
-                    out.append(Item(kind: .search, title: "Bu klasörde ara: “\(raw)”", subtitle: scope.path,
+                    out.append(Item(kind: .search, title: L("Search this folder: “%@”", raw), subtitle: scope.path,
                                     icon: NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)) { [weak c] alt in
                         c?.go(to: SmartFolders.shared.search(raw, in: scope), otherPane: alt)
                     })

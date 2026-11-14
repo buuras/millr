@@ -102,7 +102,7 @@ enum FileOps {
             try urls.map { u in
                 let ns = u.lastPathComponent as NSString
                 let ext = ns.pathExtension
-                let base = ns.deletingPathExtension + " kopya"
+                let base = ns.deletingPathExtension + L(" copy")
                 let dest = uniqueURL(for: ext.isEmpty ? base : "\(base).\(ext)", in: u.deletingLastPathComponent())
                 try fm.copyItem(at: u, to: dest)
                 return dest
@@ -111,14 +111,14 @@ enum FileOps {
     }
 
     static func newFolder(in dir: URL) throws -> URL {
-        let dest = uniqueURL(for: "Yeni Klasör", in: dir)
+        let dest = uniqueURL(for: L("New Folder"), in: dir)
         try fm.createDirectory(at: dest, withIntermediateDirectories: false)
         return dest
     }
 
     static func newFile(in dir: URL) throws -> URL {
         // O_EXCL: never truncate a file another app created under the same name meanwhile.
-        return try place(uniqueURL(for: "Yeni Metin Dosyası.txt", in: dir)) { u in
+        return try place(uniqueURL(for: L("New Text File.txt"), in: dir)) { u in
             let fd = open(u.path, O_CREAT | O_EXCL | O_WRONLY, 0o644)
             if fd < 0 { throw posixError(errno, u) }
             close(fd)
@@ -150,7 +150,7 @@ enum FileOps {
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
                 p.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", urls[0].path, dest.path]
             } else {
-                dest = uniqueURL(for: "Arşiv.zip", in: dir)
+                dest = uniqueURL(for: L("Archive.zip"), in: dir)
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
                 p.currentDirectoryURL = dir
                 // "--": names starting with "-" are not options.

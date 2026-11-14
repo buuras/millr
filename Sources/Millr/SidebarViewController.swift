@@ -87,26 +87,26 @@ final class SidebarViewController: NSViewController {
         }
         shelf.applyTheme()
 
-        addHeader(SectionHeader(title: "Diskler"))
+        addHeader(SectionHeader(title: L("Disks")))
         for vol in volumes() {
             let row = SidebarRow(title: vol.name, icon: NSWorkspace.shared.icon(forFile: vol.url.path),
                                  usage: vol.total > 0 ? Double(vol.total - vol.free) / Double(vol.total) : nil,
-                                 subtitle: vol.total > 0 ? "\(Fmt.size(vol.free)) boş / \(Fmt.size(vol.total))" : nil)
+                                 subtitle: vol.total > 0 ? L("%@ free / %@", Fmt.size(vol.free), Fmt.size(vol.total)) : nil)
             add(row, url: vol.url, group: nil)
         }
 
-        addHeader(SectionHeader(title: "Konumlar"))
+        addHeader(SectionHeader(title: L("Locations")))
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
         let places: [(String, URL, String)] = [
             (NSUserName(), home, "house"),
-            ("Masaüstü", home.appendingPathComponent("Desktop"), "menubar.dock.rectangle"),
-            ("Belgeler", home.appendingPathComponent("Documents"), "doc"),
-            ("İndirilenler", home.appendingPathComponent("Downloads"), "arrow.down.circle"),
-            ("Uygulamalar", URL(fileURLWithPath: "/Applications"), "square.grid.3x3"),
-            ("Resimler", home.appendingPathComponent("Pictures"), "photo"),
-            ("Filmler", home.appendingPathComponent("Movies"), "film"),
-            ("Müzik", home.appendingPathComponent("Music"), "music.note"),
+            (L("Desktop"), home.appendingPathComponent("Desktop"), "menubar.dock.rectangle"),
+            (L("Documents"), home.appendingPathComponent("Documents"), "doc"),
+            (L("Downloads"), home.appendingPathComponent("Downloads"), "arrow.down.circle"),
+            (L("Applications"), URL(fileURLWithPath: "/Applications"), "square.grid.3x3"),
+            (L("Pictures"), home.appendingPathComponent("Pictures"), "photo"),
+            (L("Movies"), home.appendingPathComponent("Movies"), "film"),
+            (L("Music"), home.appendingPathComponent("Music"), "music.note"),
         ]
         for (title, url, sym) in places where fm.fileExists(atPath: url.path) {
             add(SidebarRow(title: title, symbol: sym), url: url, group: nil)
@@ -114,7 +114,7 @@ final class SidebarViewController: NSViewController {
 
         let clouds = Cloud.providers()
         if !clouds.isEmpty {
-            addHeader(SectionHeader(title: "Bulut"))
+            addHeader(SectionHeader(title: L("Cloud")))
             for c in clouds {
                 let row = c.symbol == "icloud" ? SidebarRow(title: c.name, symbol: "icloud")
                                                : SidebarRow(title: c.name, icon: NSWorkspace.shared.icon(forFile: c.url.path))
@@ -124,42 +124,42 @@ final class SidebarViewController: NSViewController {
 
         let frequent = History.shared.frequent(limit: 5)
         if !frequent.isEmpty {
-            addHeader(SectionHeader(title: "Sık Kullanılan"))
+            addHeader(SectionHeader(title: L("Frequent")))
             for u in frequent {
                 let row = SidebarRow(title: FileManager.default.displayName(atPath: u.path), icon: NSWorkspace.shared.icon(forFile: u.path))
                 add(row, url: u, group: nil)
                 row.menu?.addItem(.separator())
-                row.menu?.addItem(ClosureMenuItem("Listeden Çıkar") { History.shared.forget(u.path) })
+                row.menu?.addItem(ClosureMenuItem(L("Remove from List")) { History.shared.forget(u.path) })
             }
         }
 
-        let smartHeader = SectionHeader(title: "Akıllı Klasörler", addButton: true)
+        let smartHeader = SectionHeader(title: L("Smart Folders"), addButton: true)
         smartHeader.onAdd = { [weak self] in self?.onNewSmartFolder?() }
-        smartHeader.toolTip = "Yeni akıllı klasör (kayıtlı Spotlight sorgusu)"
+        smartHeader.toolTip = L("New smart folder (saved Spotlight query)")
         addHeader(smartHeader)
         for f in SmartFolders.shared.folders {
             let row = SidebarRow(title: f.name, symbol: f.symbol)
             row.onClick = { [weak self] in self?.onOpen?(SmartFolders.shared.url(for: f)) }
             let m = NSMenu()
-            m.addItem(ClosureMenuItem("Aç") { [weak self] in self?.onOpen?(SmartFolders.shared.url(for: f)) })
-            m.addItem(ClosureMenuItem("Diğer Panelde Aç") { [weak self] in self?.onOpenInOtherPane?(SmartFolders.shared.url(for: f)) })
-            m.addItem(ClosureMenuItem("Yeniden Adlandır…") { [weak self] in
-                promptText("Akıllı klasörü yeniden adlandır", value: f.name, window: self?.view.window) { name in
+            m.addItem(ClosureMenuItem(L("Open")) { [weak self] in self?.onOpen?(SmartFolders.shared.url(for: f)) })
+            m.addItem(ClosureMenuItem(L("Open in Other Pane")) { [weak self] in self?.onOpenInOtherPane?(SmartFolders.shared.url(for: f)) })
+            m.addItem(ClosureMenuItem(L("Rename…")) { [weak self] in
+                promptText(L("Rename smart folder"), value: f.name, window: self?.view.window) { name in
                     SmartFolders.shared.rename(id: f.id, to: name)
                 }
             })
             m.addItem(.separator())
-            m.addItem(ClosureMenuItem("Sil") { SmartFolders.shared.remove(id: f.id) })
+            m.addItem(ClosureMenuItem(L("Delete")) { SmartFolders.shared.remove(id: f.id) })
             row.menu = m
             row.toolTip = f.query
             stack.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
         }
 
-        let newGroup = SectionHeader(title: "Gruplar", addButton: true)
+        let newGroup = SectionHeader(title: L("Groups"), addButton: true)
         newGroup.onAdd = { [weak self] in self?.createGroup(with: []) }
         newGroup.onDropURLs = { [weak self] urls in self?.createGroup(with: urls) }
-        newGroup.toolTip = "Yeni grup oluştur (klasörleri buraya sürükleyerek de oluşturabilirsin)"
+        newGroup.toolTip = L("New group (you can also drag folders here)")
         addHeader(newGroup)
 
         let groups = Prefs.shared.groups
@@ -171,7 +171,7 @@ final class SidebarViewController: NSViewController {
             addHeader(h)
             guard !g.collapsed else { continue }
             if g.paths.isEmpty {
-                let hint = label("Klasör sürükleyip bırak", size: 11, color: .tertiaryLabelColor)
+                let hint = label(L("Drag and drop folders"), size: 11, color: .tertiaryLabelColor)
                 let wrap = NSView()
                 wrap.translatesAutoresizingMaskIntoConstraints = false
                 wrap.addSubview(hint)
@@ -203,15 +203,15 @@ final class SidebarViewController: NSViewController {
     private func add(_ row: SidebarRow, url: URL, group: SidebarGroup?) {
         row.onClick = { [weak self] in self?.activate(url) }
         let m = NSMenu()
-        m.addItem(ClosureMenuItem("Aç") { [weak self] in self?.activate(url) })
-        m.addItem(ClosureMenuItem("Diğer Panelde Aç") { [weak self] in self?.onOpenInOtherPane?(url) })
-        m.addItem(ClosureMenuItem("Yeni Sekmede Aç") { [weak self] in self?.onOpenInNewTab?(url) })
-        m.addItem(ClosureMenuItem("Finder'da Göster") { NSWorkspace.shared.activateFileViewerSelecting([url]) })
+        m.addItem(ClosureMenuItem(L("Open")) { [weak self] in self?.activate(url) })
+        m.addItem(ClosureMenuItem(L("Open in Other Pane")) { [weak self] in self?.onOpenInOtherPane?(url) })
+        m.addItem(ClosureMenuItem(L("Open in New Tab")) { [weak self] in self?.onOpenInNewTab?(url) })
+        m.addItem(ClosureMenuItem(L("Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) })
         let groups = Prefs.shared.groups
         if let group {
             m.addItem(.separator())
             if groups.count > 1 {
-                let move = NSMenuItem(title: "Başka Gruba Taşı", action: nil, keyEquivalent: "")
+                let move = NSMenuItem(title: L("Move to Another Group"), action: nil, keyEquivalent: "")
                 let sub = NSMenu()
                 for g in groups where g.id != group.id {
                     sub.addItem(ClosureMenuItem(g.name) {
@@ -222,9 +222,9 @@ final class SidebarViewController: NSViewController {
                 move.submenu = sub
                 m.addItem(move)
             }
-            m.addItem(ClosureMenuItem("Yukarı Taşı") { Self.moveItem(url.path, in: group.id, by: -1) })
-            m.addItem(ClosureMenuItem("Aşağı Taşı") { Self.moveItem(url.path, in: group.id, by: 1) })
-            m.addItem(ClosureMenuItem("Gruptan Kaldır") {
+            m.addItem(ClosureMenuItem(L("Move Up")) { Self.moveItem(url.path, in: group.id, by: -1) })
+            m.addItem(ClosureMenuItem(L("Move Down")) { Self.moveItem(url.path, in: group.id, by: 1) })
+            m.addItem(ClosureMenuItem(L("Remove from Group")) {
                 Prefs.shared.updateGroup(group.id) { $0.paths.removeAll { $0 == url.path } }
             })
         } else if !groups.isEmpty {
@@ -254,34 +254,34 @@ final class SidebarViewController: NSViewController {
 
     private func groupMenu(_ g: SidebarGroup, index: Int, count: Int) -> NSMenu {
         let m = NSMenu()
-        m.addItem(ClosureMenuItem("Etkin Klasörü Ekle") { [weak self] in
+        m.addItem(ClosureMenuItem(L("Add Current Folder")) { [weak self] in
             if let u = self?.currentFolder?() { Prefs.shared.add([u], toGroup: g.id) }
         })
-        m.addItem(ClosureMenuItem("Yeniden Adlandır…") { [weak self] in
-            promptText("Grubu yeniden adlandır", value: g.name, window: self?.view.window) { name in
+        m.addItem(ClosureMenuItem(L("Rename…")) { [weak self] in
+            promptText(L("Rename group"), value: g.name, window: self?.view.window) { name in
                 Prefs.shared.updateGroup(g.id) { $0.name = name }
             }
         })
         m.addItem(.separator())
-        m.addItem(ClosureMenuItem("Yukarı Taşı", enabled: index > 0) {
+        m.addItem(ClosureMenuItem(L("Move Up"), enabled: index > 0) {
             var all = Prefs.shared.groups
             all.swapAt(index, index - 1)
             Prefs.shared.groups = all
         })
-        m.addItem(ClosureMenuItem("Aşağı Taşı", enabled: index < count - 1) {
+        m.addItem(ClosureMenuItem(L("Move Down"), enabled: index < count - 1) {
             var all = Prefs.shared.groups
             all.swapAt(index, index + 1)
             Prefs.shared.groups = all
         })
         m.addItem(.separator())
-        m.addItem(ClosureMenuItem("Yeni Grup…") { [weak self] in self?.createGroup(with: []) })
-        m.addItem(ClosureMenuItem("Grubu Sil") { [weak self] in
+        m.addItem(ClosureMenuItem(L("New Group…")) { [weak self] in self?.createGroup(with: []) })
+        m.addItem(ClosureMenuItem(L("Delete Group")) { [weak self] in
             guard let window = self?.view.window else { return }
             let a = NSAlert()
-            a.messageText = "“\(g.name)” grubu silinsin mi?"
-            a.informativeText = "Sadece kenar çubuğundaki grup silinir, klasörlere dokunulmaz."
-            a.addButton(withTitle: "Sil")
-            a.addButton(withTitle: "Vazgeç")
+            a.messageText = L("Delete the group “%@”?", g.name)
+            a.informativeText = L("Only the sidebar group is deleted; the folders are not touched.")
+            a.addButton(withTitle: L("Delete"))
+            a.addButton(withTitle: L("Cancel"))
             a.beginSheetModal(for: window) { r in
                 if r == .alertFirstButtonReturn { Prefs.shared.groups = Prefs.shared.groups.filter { $0.id != g.id } }
             }
@@ -290,22 +290,22 @@ final class SidebarViewController: NSViewController {
     }
 
     func createGroup(with urls: [URL]) {
-        promptText("Yeni grup", value: "Yeni Grup", window: view.window) { name in
+        promptText(L("New Group"), value: L("New Group"), window: view.window) { name in
             Prefs.shared.createGroup(name, with: urls)
         }
     }
 
     /// "Gruba Ekle ▸" submenu used by the sidebar and the file context menu.
     static func addToGroupMenu(urls: [URL], window: NSWindow? = nil) -> NSMenuItem {
-        let item = NSMenuItem(title: "Gruba Ekle", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L("Add to Group"), action: nil, keyEquivalent: "")
         item.image = NSImage(systemSymbolName: "star", accessibilityDescription: nil)
         let sub = NSMenu()
         for g in Prefs.shared.groups {
             sub.addItem(ClosureMenuItem(g.name) { Prefs.shared.add(urls, toGroup: g.id) })
         }
         sub.addItem(.separator())
-        sub.addItem(ClosureMenuItem("Yeni Grup…") {
-            promptText("Yeni grup", value: "Yeni Grup", window: window ?? NSApp.keyWindow) { name in
+        sub.addItem(ClosureMenuItem(L("New Group…")) {
+            promptText(L("New Group"), value: L("New Group"), window: window ?? NSApp.keyWindow) { name in
                 Prefs.shared.createGroup(name, with: urls)
             }
         })
@@ -335,8 +335,8 @@ func promptText(_ title: String, value: String, window: NSWindow?, done: @escapi
     let field = NSTextField(string: value)
     field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
     alert.accessoryView = field
-    alert.addButton(withTitle: "Tamam")
-    alert.addButton(withTitle: "Vazgeç")
+    alert.addButton(withTitle: L("OK"))
+    alert.addButton(withTitle: L("Cancel"))
     alert.window.initialFirstResponder = field
     let finish: (NSApplication.ModalResponse) -> Void = { r in
         let s = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -403,7 +403,7 @@ final class SectionHeader: DropTargetView {
             heightAnchor.constraint(equalToConstant: 28),
         ]
         if addButton {
-            let b = symbolButton("plus", "Yeni grup", target: self, action: #selector(add))
+            let b = symbolButton("plus", L("New Group"), target: self, action: #selector(add))
             addSubview(b)
             cons += [b.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
                      b.centerYAnchor.constraint(equalTo: l.centerYAnchor)]
@@ -447,7 +447,7 @@ final class GroupHeader: DropTargetView {
             c.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             c.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
-        toolTip = "Tıkla: aç/kapat · Sağ tık: grup işlemleri · Klasör sürükle: gruba ekle"
+        toolTip = L("Click: expand/collapse · Right-click: group actions · Drag a folder: add to group")
     }
 
     required init?(coder: NSCoder) { fatalError() }

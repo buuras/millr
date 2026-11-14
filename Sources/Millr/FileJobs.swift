@@ -171,9 +171,9 @@ final class FileJobs {
 
     func transfer(_ urls: [URL], to dir: URL, move: Bool, completion: @escaping (FileJob) -> Void) {
         let n = urls.count
-        let what = n == 1 ? urls[0].lastPathComponent : "\(n) öğe"
+        let what = n == 1 ? urls[0].lastPathComponent : Fmt.items(n)
         let job = FileJob(kind: move ? .move : .copy,
-                          title: "\(what) \(move ? "taşınıyor" : "kopyalanıyor") → \(dir.lastPathComponent)")
+                          title: L(move ? "Moving %@ → %@" : "Copying %@ → %@", what, dir.lastPathComponent))
         run(job, work: { [weak self] job in
             guard let self else { return }
             try self.performTransfer(urls, to: dir, move: move, job: job)
@@ -191,7 +191,7 @@ final class FileJobs {
                 guard job.checkpoint() else { return }
                 job.beginItem(p.from.lastPathComponent)
                 guard FileOps.exists(p.from) else {
-                    failures.append("“\(p.from.lastPathComponent)” bulunamadı")
+                    failures.append(L("“%@” not found", p.from.lastPathComponent))
                     continue
                 }
                 do {
@@ -226,7 +226,7 @@ final class FileJobs {
             }
             if !failures.isEmpty {
                 throw NSError(domain: "OCJobs", code: 1, userInfo: [NSLocalizedDescriptionKey:
-                    "\(failures.count) öğe geri alınamadı. " + failures.prefix(3).joined(separator: "; ")])
+                    L("%d items could not be undone. ", failures.count) + failures.prefix(3).joined(separator: "; ")])
             }
         }, completion: completion)
     }
@@ -428,7 +428,7 @@ final class FileJobs {
             let reason = String(cString: strerror(posix == 0 ? EIO : posix))
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(posix == 0 ? EIO : posix), userInfo: [
                 NSFilePathErrorKey: path,
-                NSLocalizedDescriptionKey: "“\((path as NSString).lastPathComponent)” kopyalanamadı: \(reason)",
+                NSLocalizedDescriptionKey: L("Could not copy “%@”: %@", (path as NSString).lastPathComponent, reason),
             ])
         }
     }
@@ -444,15 +444,15 @@ final class FileJobs {
         DispatchQueue.main.sync {
             let alert = NSAlert()
             alert.alertStyle = .warning
-            alert.messageText = "“\(name)” zaten var"
-            alert.informativeText = "“\(dir.lastPathComponent)” klasöründe aynı adlı bir öğe bulunuyor. Değiştirilen öğe Çöp Sepeti'ne taşınır."
-            alert.addButton(withTitle: "Değiştir")
-            alert.addButton(withTitle: "İkisini de Tut")
-            alert.addButton(withTitle: "Atla")
-            alert.addButton(withTitle: "İptal")
+            alert.messageText = L("“%@” already exists", name)
+            alert.informativeText = L("An item with the same name already exists in “%@”. The replaced item is moved to the Trash.", dir.lastPathComponent)
+            alert.addButton(withTitle: L("Replace"))
+            alert.addButton(withTitle: L("Keep Both"))
+            alert.addButton(withTitle: L("Skip"))
+            alert.addButton(withTitle: L("Cancel"))
             if remaining > 1 {
                 alert.showsSuppressionButton = true
-                alert.suppressionButton?.title = "Kalan tüm çakışmalara uygula"
+                alert.suppressionButton?.title = L("Apply to all remaining conflicts")
             }
             let r = alert.runModal()
             let all = alert.suppressionButton?.state == .on
@@ -552,8 +552,8 @@ final class JobRowView: NSView {
     private let title = label("", size: 12, weight: .semibold)
     private let detail = label("", size: 11)
     private let bar = NSProgressIndicator()
-    private lazy var pauseBtn = symbolButton("pause.circle.fill", "Duraklat / devam", target: self, action: #selector(togglePause))
-    private lazy var cancelBtn = symbolButton("xmark.circle.fill", "İptal", target: self, action: #selector(cancel))
+    private lazy var pauseBtn = symbolButton("pause.circle.fill", L("Pause / resume"), target: self, action: #selector(togglePause))
+    private lazy var cancelBtn = symbolButton("xmark.circle.fill", L("Cancel"), target: self, action: #selector(cancel))
 
     init(job: FileJob) {
         self.job = job
@@ -634,30 +634,30 @@ final class JobRowView: NSView {
             let paused = job.state == .paused
             pauseBtn.image = NSImage(systemSymbolName: paused ? "play.circle.fill" : "pause.circle.fill", accessibilityDescription: nil)
             if job.indeterminate {
-                detail.stringValue = s.name.isEmpty ? "Çalışıyor…" : s.name
+                detail.stringValue = s.name.isEmpty ? L("Working…") : s.name
                 return
             }
             let frac = s.total > 0 ? Double(s.done) / Double(s.total) : (s.files > 0 ? Double(s.doneFiles) / Double(s.files) : 0)
             bar.doubleValue = frac
             var parts = ["\(Fmt.size(s.done)) / \(Fmt.size(s.total))"]
             if paused {
-                parts.append("duraklatıldı")
+                parts.append(L("paused"))
             } else if s.elapsed > 0.5, s.done > 0 {
                 let speed = Double(s.done) / s.elapsed
-                parts.append("\(Fmt.size(Int64(speed)))/sn")
-                if speed > 0, s.total > s.done { parts.append("~\(Fmt.duration(Double(s.total - s.done) / speed)) kaldı") }
+                parts.append(L("%@/s", Fmt.size(Int64(speed))))
+                if speed > 0, s.total > s.done { parts.append(L("~%@ left", Fmt.duration(Double(s.total - s.done) / speed))) }
             }
-            if s.files > 1 { parts.append("\(s.doneFiles)/\(s.files) dosya") }
+            if s.files > 1 { parts.append(L("%d/%d files", s.doneFiles, s.files)) }
             detail.stringValue = parts.joined(separator: "  ·  ")
             detail.toolTip = s.name
         case .done:
-            finish("checkmark.circle.fill", "Tamamlandı", t.ageDay)
+            finish("checkmark.circle.fill", L("Done"), t.ageDay)
         case .cancelled:
-            finish("xmark.circle", "İptal edildi", t.secondary)
+            finish("xmark.circle", L("Cancelled"), t.secondary)
         case .failed(let msg):
             finish("exclamationmark.triangle.fill", msg, NSColor.systemRed)
             cancelBtn.isHidden = false
-            cancelBtn.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Kapat")
+            cancelBtn.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: L("Close"))
         }
     }
 

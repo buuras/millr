@@ -31,24 +31,48 @@ final class SmartFolders: NSObject {
         super.init()
         if let d = UserDefaults.standard.data(forKey: key), let f = try? JSONDecoder().decode([SmartFolder].self, from: d) {
             folders = f
+            // Saved built-in folders show in the current language unless the user renamed them.
+            for i in folders.indices {
+                if let key = Self.builtInNames[folders[i].id], Self.translations(of: key).contains(folders[i].name) {
+                    folders[i].name = L(key)
+                }
+            }
         } else {
             folders = Self.defaults
         }
     }
 
+    /// English keys of the built-in folders' names, by id.
+    private static let builtInNames = [
+        "recent-downloads": "Downloads, Last 7 Days", "large-files": "Large Files (>100 MB)",
+        "changed-today": "Changed Today", "recent-opened": "Recently Opened (7 days)",
+        "screenshots": "Screenshots", "recent-pdfs": "PDFs (30 days)",
+    ]
+
+    /// `key` in every language the app ships.
+    private static func translations(of key: String) -> Set<String> {
+        var out: Set<String> = [key]
+        for lang in Bundle.main.localizations {
+            if let path = Bundle.main.path(forResource: lang, ofType: "lproj"), let b = Bundle(path: path) {
+                out.insert(b.localizedString(forKey: key, value: key, table: nil))
+            }
+        }
+        return out
+    }
+
     static let defaults: [SmartFolder] = [
-        SmartFolder(id: "recent-downloads", name: "Son 7 Gün İndirilenler", symbol: "arrow.down.circle",
+        SmartFolder(id: "recent-downloads", name: L("Downloads, Last 7 Days"), symbol: "arrow.down.circle",
                     query: "kMDItemDateAdded >= $time.today(-7)", scopes: ["~/Downloads"]),
-        SmartFolder(id: "large-files", name: "Büyük Dosyalar (>100 MB)", symbol: "externaldrive",
+        SmartFolder(id: "large-files", name: L("Large Files (>100 MB)"), symbol: "externaldrive",
                     query: "kMDItemFSSize > 104857600", scopes: ["~"]),
-        SmartFolder(id: "changed-today", name: "Bugün Değişenler", symbol: "clock",
+        SmartFolder(id: "changed-today", name: L("Changed Today"), symbol: "clock",
                     query: "kMDItemFSContentChangeDate >= $time.today && kMDItemContentType != \"public.folder\"", scopes: ["~"]),
-        SmartFolder(id: "recent-opened", name: "Son Açılanlar (7 gün)", symbol: "eye",
+        SmartFolder(id: "recent-opened", name: L("Recently Opened (7 days)"), symbol: "eye",
                     query: "kMDItemLastUsedDate >= $time.today(-7) && kMDItemContentType != \"public.folder\" && kMDItemContentTypeTree != \"com.apple.application\"",
                     scopes: ["~"]),
-        SmartFolder(id: "screenshots", name: "Ekran Görüntüleri", symbol: "camera.viewfinder",
+        SmartFolder(id: "screenshots", name: L("Screenshots"), symbol: "camera.viewfinder",
                     query: "kMDItemIsScreenCapture == 1", scopes: ["~"]),
-        SmartFolder(id: "recent-pdfs", name: "PDF'ler (30 gün)", symbol: "doc.richtext",
+        SmartFolder(id: "recent-pdfs", name: L("PDFs (30 days)"), symbol: "doc.richtext",
                     query: "kMDItemContentType == \"com.adobe.pdf\" && kMDItemFSContentChangeDate >= $time.today(-30)", scopes: ["~"]),
     ]
 
@@ -147,7 +171,7 @@ final class SmartFolders: NSObject {
     /// Ad-hoc name/content search, shown as a virtual folder.
     func search(_ text: String, in scope: URL) -> URL {
         let esc = text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let f = SmartFolder(id: "search-\(abs(text.hashValue))-\(abs(scope.path.hashValue))", name: "Ara: \(text)",
+        let f = SmartFolder(id: "search-\(abs(text.hashValue))-\(abs(scope.path.hashValue))", name: L("Search: %@", text),
                             symbol: "magnifyingglass",
                             query: "kMDItemFSName == \"*\(esc)*\"cd || kMDItemTextContent == \"\(esc)*\"cdw",
                             scopes: [scope.path])
@@ -158,7 +182,7 @@ final class SmartFolders: NSObject {
 
     func saveTemporary(path: String, window: NSWindow?) {
         guard let id = Self.id(fromPath: path), let t = temporary[id] else { return }
-        promptText("Akıllı klasör adı", value: t.name.replacingOccurrences(of: "Ara: ", with: ""), window: window) { name in
+        promptText(L("Smart folder name"), value: t.name.replacingOccurrences(of: L("Search: %@", ""), with: ""), window: window) { name in
             var f = t
             f.name = name
             self.add(f)
@@ -168,18 +192,18 @@ final class SmartFolders: NSObject {
     // MARK: Builder dialog
 
     private static let kinds: [(String, String?)] = [
-        ("Tüm türler", nil), ("Görsel", "public.image"), ("Video", "public.movie"), ("Ses", "public.audio"),
-        ("PDF", "com.adobe.pdf"), ("Metin / kod", "public.text"), ("Arşiv", "public.archive"),
-        ("Uygulama", "com.apple.application"), ("Klasör", "public.folder"),
+        (L("All kinds"), nil), (L("Image"), "public.image"), (L("Video"), "public.movie"), (L("Audio"), "public.audio"),
+        ("PDF", "com.adobe.pdf"), (L("Text / code"), "public.text"), (L("Archive"), "public.archive"),
+        (L("Application"), "com.apple.application"), (L("Folder"), "public.folder"),
     ]
 
     /// Asks for conditions and saves a new smart folder. `current` is offered as scope.
     func promptCreate(window: NSWindow?, current: URL?, done: @escaping (SmartFolder) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "Yeni Akıllı Klasör"
-        alert.informativeText = "Boş bıraktığın koşullar yok sayılır. Sonuçlar canlı güncellenir."
-        alert.addButton(withTitle: "Oluştur")
-        alert.addButton(withTitle: "Vazgeç")
+        alert.messageText = L("New Smart Folder")
+        alert.informativeText = L("Empty conditions are ignored. Results update live.")
+        alert.addButton(withTitle: L("Create"))
+        alert.addButton(withTitle: L("Cancel"))
 
         func field(_ ph: String) -> NSTextField {
             let f = NSTextField()
@@ -188,19 +212,19 @@ final class SmartFolders: NSObject {
             f.widthAnchor.constraint(equalToConstant: 240).isActive = true
             return f
         }
-        let name = field("Örn. Büyük videolar")
-        let contains = field("Adında geçen (isteğe bağlı)")
+        let name = field(L("E.g. Large videos"))
+        let contains = field(L("Name contains (optional)"))
         let kind = NSPopUpButton()
         Self.kinds.forEach { kind.addItem(withTitle: $0.0) }
-        let minSize = field("MB, örn. 50")
-        let days = field("gün, örn. 14")
+        let minSize = field(L("MB, e.g. 50"))
+        let days = field(L("days, e.g. 14"))
         let scope = NSPopUpButton()
-        scope.addItems(withTitles: ["Ana klasör (~)", "Tüm Mac"])
-        if let current { scope.addItem(withTitle: "Etkin klasör: \(current.lastPathComponent)") ; scope.selectItem(at: 2) }
+        scope.addItems(withTitles: [L("Home folder (~)"), L("Entire Mac")])
+        if let current { scope.addItem(withTitle: L("Current folder: %@", current.lastPathComponent)) ; scope.selectItem(at: 2) }
 
         let grid = NSGridView(views: [
-            [label("Ad:"), name], [label("Ad içerir:"), contains], [label("Tür:"), kind],
-            [label("En az boyut:"), minSize], [label("Son … günde değişen:"), days], [label("Nerede:"), scope],
+            [label(L("Name:")), name], [label(L("Name contains:")), contains], [label(L("Kind:")), kind],
+            [label(L("Minimum size:")), minSize], [label(L("Changed in the last … days:")), days], [label(L("Where:")), scope],
         ])
         grid.column(at: 0).xPlacement = .trailing
         grid.rowSpacing = 8
@@ -226,7 +250,7 @@ final class SmartFolders: NSObject {
             default: scopes = ["~"]
             }
             let title = name.stringValue.trimmingCharacters(in: .whitespaces)
-            let f = SmartFolder(id: "smart-\(UUID().uuidString.prefix(8))", name: title.isEmpty ? "Akıllı Klasör" : title,
+            let f = SmartFolder(id: "smart-\(UUID().uuidString.prefix(8))", name: title.isEmpty ? L("Smart Folder") : title,
                                 symbol: "gearshape.2", query: parts.joined(separator: " && "), scopes: scopes)
             self.add(f)
             done(f)
