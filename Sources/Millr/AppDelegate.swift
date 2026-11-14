@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         scheduleDebugSnapshot()
     }
 
-    /// Debug aid: `OCCommander --snapshot /path/out.png [--reveal /some/path]`
+    /// Debug aid: `Millr --snapshot /path/out.png [--reveal /some/path]`
     /// writes the window contents to a PNG (no screen-recording permission needed).
     private func scheduleDebugSnapshot() {
         let args = CommandLine.arguments

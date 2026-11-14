@@ -1,6 +1,6 @@
 import AppKit
 
-/// Debug: `OCCommander --selftest <empty dir>` drives real app code paths
+/// Debug: `Millr --selftest <empty dir>` drives real app code paths
 /// (jobs, undo/redo, rename, archives, smart folders, palette scoring) and prints PASS/FAIL lines.
 final class SelfTest {
     private let wc: MainWindowController

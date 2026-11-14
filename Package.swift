@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "OCCommander",
+    name: "Millr",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "OCCommander",
-            path: "Sources/OCCommander",
+            name: "Millr",
+            path: "Sources/Millr",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("Quartz"),

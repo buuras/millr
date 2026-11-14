@@ -1,20 +1,20 @@
 #!/bin/bash
 # Stress test: builds two temporary APFS disk images (data + cross-volume target),
-# fills A with a synthetic tree, runs `OCCommander --stress`, profiles it, then detaches
+# fills A with a synthetic tree, runs `Millr --stress`, profiles it, then detaches
 # and deletes everything. User defaults are backed up and restored.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 WORK="${STRESS_WORK:-$TMPDIR/oc-stress}"
 OUT="stress/out"
-APP="build/OC Commander.app/Contents/MacOS/OCCommander"
-DOMAIN="com.bugras.occommander"
+APP="build/Millr.app/Contents/MacOS/Millr"
+DOMAIN="io.github.buuras.millr"
 mkdir -p "$WORK" "$OUT"
 
 cleanup() {
     hdiutil detach /Volumes/OCStressA -force -quiet 2>/dev/null
     hdiutil detach /Volumes/OCStressB -force -quiet 2>/dev/null
     rm -rf "$WORK"
-    rm -rf "$HOME/Library/Caches/OCCommander/Archives"
+    rm -rf "$HOME/Library/Caches/Millr/Archives"
     [ -f "$OUT/defaults-backup.plist" ] && defaults import "$DOMAIN" "$OUT/defaults-backup.plist"
 }
 # Modes: all (default: setup, test, clean) · setup · test [--only a,b] · clean

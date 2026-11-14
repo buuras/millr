@@ -1,7 +1,7 @@
-// Renders the OC Commander app icon (1024×1024 PNG) from plain geometric shapes.
+// Renders the Millr app icon (1024×1024 PNG) from plain geometric shapes.
 // Usage: swift tools/make-icon.swift out.png
-// Left: two stacked panes made of column blocks (thin strips → wide columns).
-// Right: tall preview panel with a sun and a mountain. Nord palette.
+// An "M" made of three separate columns: the outer ones have sloped tops, the middle one
+// is pointed. Nord palette on a Polar Night squircle.
 import AppKit
 
 let size: CGFloat = 1024
@@ -18,96 +18,48 @@ func hex(_ v: UInt32, _ a: CGFloat = 1) -> NSColor {
             blue: CGFloat(v & 0xff) / 255, alpha: a)
 }
 
-func rr(_ r: NSRect, _ radius: CGFloat, _ color: NSColor) {
-    color.setFill()
-    NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
-}
-
 // Body: Polar Night squircle with soft drop shadow
 let body = NSRect(x: 100, y: 100, width: 824, height: 824)
 NSGraphicsContext.saveGraphicsState()
 let shadow = NSShadow()
-shadow.shadowColor = NSColor.black.withAlphaComponent(0.4)
-shadow.shadowBlurRadius = 30
-shadow.shadowOffset = NSSize(width: 0, height: -14)
+shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
+shadow.shadowBlurRadius = 28
+shadow.shadowOffset = NSSize(width: 0, height: -12)
 shadow.set()
-rr(body, 186, hex(0x2E3440))
+let bodyPath = NSBezierPath(roundedRect: body, xRadius: 185, yRadius: 185)
+NSGradient(starting: hex(0x434C5E), ending: hex(0x2E3440))!.draw(in: bodyPath, angle: -90)
 NSGraphicsContext.restoreGraphicsState()
-NSGradient(starting: hex(0x434C5E), ending: hex(0x2E3440))!
-    .draw(in: NSBezierPath(roundedRect: body, xRadius: 186, yRadius: 186), angle: -90)
+bodyPath.addClip()
 
-let inset: CGFloat = 92
-let content = body.insetBy(dx: inset, dy: inset)       // 640×640 drawing area
-let gap: CGFloat = 26
-let previewW: CGFloat = 196
-let panesW = content.width - previewW - gap
-let paneH = (content.height - gap) / 2
-
-/// One pane: two thin strips, then three columns growing in width.
-func pane(_ r: NSRect, base: NSColor, active: Bool) {
-    rr(r, 34, base)
-    let pad: CGFloat = 20
-    let inner = r.insetBy(dx: pad, dy: pad)
-    let strip: CGFloat = 20
-    var x = inner.minX
-    for _ in 0..<2 {
-        rr(NSRect(x: x, y: inner.minY, width: strip, height: inner.height), 10, hex(0x2E3440, 0.35))
-        x += strip + 10
-    }
-    let widths: [CGFloat] = [0.27, 0.30, 0.43].map { $0 * (inner.maxX - x - 20) }
-    for (i, w) in widths.enumerated() {
-        let col = NSRect(x: x, y: inner.minY, width: w, height: inner.height)
-        rr(col, 16, hex(0xECEFF4, i == 2 ? 1 : 0.92))
-        // one selected row per column, stepping down like a path
-        let rowH: CGFloat = 30
-        let y = col.maxY - 22 - rowH - CGFloat(i) * (rowH + 12)
-        rr(NSRect(x: col.minX + 10, y: y, width: col.width - 20, height: rowH), 10, active ? hex(0x5E81AC) : hex(0x81A1C1))
-        if i == 2 {
-            // colored age dots in the detailed column
-            let dots = [hex(0xA3BE8C), hex(0xEBCB8B), hex(0xBF616A)]
-            for (d, c) in dots.enumerated() {
-                let cy = y - 34 - CGFloat(d) * 34
-                guard cy > col.minY + 8 else { break }
-                c.setFill()
-                NSBezierPath(ovalIn: NSRect(x: col.maxX - 40, y: cy, width: 22, height: 22)).fill()
-            }
-        }
-        x += w + 10
-    }
+// A filled polygon whose corners are rounded by stroking it with a round join.
+func column(_ pts: [NSPoint], _ color: UInt32) {
+    let p = NSBezierPath()
+    p.move(to: pts[0])
+    pts.dropFirst().forEach { p.line(to: $0) }
+    p.close()
+    p.lineJoinStyle = .round
+    p.lineWidth = 36
+    hex(color).setFill()
+    hex(color).setStroke()
+    p.fill()
+    p.stroke()
 }
 
-pane(NSRect(x: content.minX, y: content.minY + paneH + gap, width: panesW, height: paneH), base: hex(0x88C0D0), active: true)
-pane(NSRect(x: content.minX, y: content.minY, width: panesW, height: paneH), base: hex(0x81A1C1), active: false)
+let bottom: CGFloat = 250, top: CGFloat = 780, middleTop: CGFloat = 560
+let w: CGFloat = 150, gap: CGFloat = 34, r: CGFloat = 18
+let x0 = (size - (3 * w + 2 * gap)) / 2
+let x1 = x0 + w + gap, x2 = x1 + w + gap
 
-// Preview: snow panel with sun + mountains
-let pv = NSRect(x: content.maxX - previewW, y: content.minY, width: previewW, height: content.height)
-rr(pv, 34, hex(0xECEFF4))
-let pic = NSRect(x: pv.minX + 20, y: pv.midY - 20, width: pv.width - 40, height: pv.height / 2)
-NSGraphicsContext.saveGraphicsState()
-NSBezierPath(roundedRect: pic, xRadius: 22, yRadius: 22).addClip()
-hex(0x8FBCBB).setFill()
-pic.fill()
-hex(0xEBCB8B).setFill()
-NSBezierPath(ovalIn: NSRect(x: pic.maxX - 78, y: pic.maxY - 82, width: 52, height: 52)).fill()
-let m = NSBezierPath()
-m.move(to: NSPoint(x: pic.minX - 10, y: pic.minY))
-m.line(to: NSPoint(x: pic.minX + 58, y: pic.minY + 150))
-m.line(to: NSPoint(x: pic.minX + 102, y: pic.minY + 80))
-m.line(to: NSPoint(x: pic.minX + 128, y: pic.minY + 112))
-m.line(to: NSPoint(x: pic.maxX + 10, y: pic.minY))
-m.close()
-hex(0xA3BE8C).setFill()
-m.fill()
-NSGraphicsContext.restoreGraphicsState()
-// info blocks below the picture (solid blocks, no text-like lines)
-let blockH: CGFloat = 46
-for i in 0..<3 {
-    let y = pic.minY - 26 - blockH - CGFloat(i) * (blockH + 16)
-    guard y > pv.minY + 14 else { break }
-    rr(NSRect(x: pv.minX + 20, y: y, width: pv.width - 40, height: blockH), 14,
-       [hex(0xD8DEE9), hex(0xE5E9F0), hex(0xD8DEE9)][i])
-}
+// Left column: top slopes down towards the middle
+column([NSPoint(x: x0 + r, y: bottom + r), NSPoint(x: x0 + w - r, y: bottom + r),
+        NSPoint(x: x0 + w - r, y: top - 120), NSPoint(x: x0 + r, y: top - r)], 0x81A1C1)
+// Middle column: lower, with a V notch on top
+column([NSPoint(x: x1 + r, y: bottom + r), NSPoint(x: x1 + w - r, y: bottom + r),
+        NSPoint(x: x1 + w - r, y: middleTop), NSPoint(x: x1 + w / 2, y: middleTop - 70),
+        NSPoint(x: x1 + r, y: middleTop)], 0x88C0D0)
+// Right column: mirror of the left one
+column([NSPoint(x: x2 + r, y: bottom + r), NSPoint(x: x2 + w - r, y: bottom + r),
+        NSPoint(x: x2 + w - r, y: top - r), NSPoint(x: x2 + r, y: top - 120)], 0x8FBCBB)
 
 NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: out))
-print("wrote \(out)")

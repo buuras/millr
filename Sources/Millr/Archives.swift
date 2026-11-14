@@ -9,7 +9,7 @@ enum Archives {
 
     static var cacheRoot: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("OCCommander/Archives")
+            .appendingPathComponent("Millr/Archives")
     }
 
     /// Extraction root → original archive (for "go up" out of the archive).

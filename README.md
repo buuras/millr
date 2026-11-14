@@ -1,4 +1,6 @@
-# OC Commander
+# Millr
+
+<img src="Resources/AppIcon.png" width="128" alt="Millr icon">
 
 A Miller-columns file manager for macOS, written in Swift and AppKit. Folders open as
 side-by-side columns; type to filter the focused column, and copy, move, rename, archive
@@ -33,10 +35,10 @@ The UI is currently in Turkish.
 ```sh
 ./build.sh            # release build
 ./build.sh debug      # debug build
-open "build/OC Commander.app"
+open "build/Millr.app"
 ```
 
-The script runs `swift build`, assembles `build/OC Commander.app` and signs it ad hoc.
+The script runs `swift build`, assembles `build/Millr.app` and signs it ad hoc.
 The app is not notarized; macOS may ask you to confirm the first launch.
 
 ## Tests
@@ -50,7 +52,7 @@ pass a path that does not exist yet, ideally on a temporary disk image:
 ```sh
 hdiutil create -size 1g -fs APFS -type SPARSE -volname OCSelf /tmp/ocself.sparseimage
 hdiutil attach /tmp/ocself.sparseimage -nobrowse
-"build/OC Commander.app/Contents/MacOS/OCCommander" --selftest /Volumes/OCSelf/t
+"build/Millr.app/Contents/MacOS/Millr" --selftest /Volumes/OCSelf/t
 hdiutil detach /Volumes/OCSelf
 ```
 

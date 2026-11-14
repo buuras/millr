@@ -22,14 +22,14 @@ enum MainMenu {
         let backspace = "\u{8}"
         let W = MainWindowController.self
 
-        submenu("OC Commander", [
-            item("OC Commander Hakkında", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+        submenu("Millr", [
+            item("Millr Hakkında", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
-            item("OC Commander'ı Gizle", #selector(NSApplication.hide(_:)), "h"),
+            item("Millr'ı Gizle", #selector(NSApplication.hide(_:)), "h"),
             item("Diğerlerini Gizle", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             item("Tümünü Göster", #selector(NSApplication.unhideAllApplications(_:))),
             .separator(),
-            item("OC Commander'dan Çık", #selector(NSApplication.terminate(_:)), "q"),
+            item("Millr'dan Çık", #selector(NSApplication.terminate(_:)), "q"),
         ])
 
         submenu("Dosya", [

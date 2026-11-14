@@ -1,7 +1,7 @@
 import AppKit
 import Darwin
 
-/// Debug: `OCCommander --stress <volume A> <volume B>` runs heavy scenarios against a generated
+/// Debug: `Millr --stress <volume A> <volume B>` runs heavy scenarios against a generated
 /// data set (see stress/gen.py) and prints timing, main-thread stall and memory lines.
 /// A holds the data; B is a second volume for real (non-clone) cross-volume copies.
 final class StressTest {
