@@ -98,7 +98,7 @@ final class TabBarView: NSView {
             v.onCloseTab = { [weak self] in self?.onClose?(i) }
             stack.addArrangedSubview(v)
         }
-        let add = symbolButton("plus", "Yeni sekme (⌘T)", target: self, action: #selector(addTab))
+        let add = symbolButton("plus", L("New tab (⌘T)"), target: self, action: #selector(addTab))
         add.contentTintColor = Theme.current.secondary
         stack.addArrangedSubview(add)
     }
@@ -131,7 +131,7 @@ final class TabItemView: HoverView {
             l.centerYAnchor.constraint(equalTo: centerYAnchor),
         ]
         if closable {
-            let x = symbolButton("xmark", "Sekmeyi kapat (⌘W)", target: self, action: #selector(closeTab))
+            let x = symbolButton("xmark", L("Close tab (⌘W)"), target: self, action: #selector(closeTab))
             (x.image)?.size = NSSize(width: 8, height: 8)
             addSubview(x)
             cons += [

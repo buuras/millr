@@ -23,68 +23,68 @@ enum MainMenu {
         let W = MainWindowController.self
 
         submenu("Millr", [
-            item("Millr Hakkında", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            item(L("About Millr"), #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
-            item("Millr'ı Gizle", #selector(NSApplication.hide(_:)), "h"),
-            item("Diğerlerini Gizle", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
-            item("Tümünü Göster", #selector(NSApplication.unhideAllApplications(_:))),
+            item(L("Hide Millr"), #selector(NSApplication.hide(_:)), "h"),
+            item(L("Hide Others"), #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
+            item(L("Show All"), #selector(NSApplication.unhideAllApplications(_:))),
             .separator(),
-            item("Millr'dan Çık", #selector(NSApplication.terminate(_:)), "q"),
+            item(L("Quit Millr"), #selector(NSApplication.terminate(_:)), "q"),
         ])
 
-        submenu("Dosya", [
-            item("Yeni Sekme", #selector(W.newTab(_:)), "t"),
-            item("Sekmeyi Kapat", #selector(W.closeTab(_:)), "w"),
-            item("Sonraki Sekme", #selector(W.nextTab(_:)), "\t", .control),
-            item("Önceki Sekme", #selector(W.previousTab(_:)), "\t", [.control, .shift]),
+        submenu(L("File"), [
+            item(L("New Tab"), #selector(W.newTab(_:)), "t"),
+            item(L("Close Tab"), #selector(W.closeTab(_:)), "w"),
+            item(L("Next Tab"), #selector(W.nextTab(_:)), "\t", .control),
+            item(L("Previous Tab"), #selector(W.previousTab(_:)), "\t", [.control, .shift]),
             .separator(),
-            item("Yeni Klasör", #selector(W.newFolder(_:)), "n", [.command, .shift]),
-            item("Yeni Metin Dosyası", #selector(W.newTextFile(_:)), "n", [.command, .option]),
+            item(L("New Folder"), #selector(W.newFolder(_:)), "n", [.command, .shift]),
+            item(L("New Text File"), #selector(W.newTextFile(_:)), "n", [.command, .option]),
             .separator(),
-            item("Aç", #selector(W.openSelection(_:)), down),
-            item("Yeniden Adlandır (F2)", #selector(W.renameSelection(_:))),
-            item("Çoğalt", #selector(W.duplicateSelection(_:)), "d"),
-            item("Sıkıştır (.zip)", #selector(W.compressSelection(_:))),
+            item(L("Open"), #selector(W.openSelection(_:)), down),
+            item(L("Rename (F2)"), #selector(W.renameSelection(_:))),
+            item(L("Duplicate"), #selector(W.duplicateSelection(_:)), "d"),
+            item(L("Compress (.zip)"), #selector(W.compressSelection(_:))),
             .separator(),
-            item("Diğer Panele Kopyala (F5)", #selector(W.copyToOtherPane(_:)), "5", [.command, .shift]),
-            item("Diğer Panele Taşı (F6)", #selector(W.moveToOtherPane(_:)), "6", [.command, .shift]),
+            item(L("Copy to Other Pane (F5)"), #selector(W.copyToOtherPane(_:)), "5", [.command, .shift]),
+            item(L("Move to Other Pane (F6)"), #selector(W.moveToOtherPane(_:)), "6", [.command, .shift]),
             .separator(),
-            item("Finder'da Göster", #selector(W.revealInFinder(_:)), "r", [.command, .shift]),
-            item("Terminalde Aç", #selector(W.openTerminalHere(_:)), "t", [.command, .option]),
-            item("Yolu Kopyala", #selector(W.copyPath(_:)), "c", [.command, .option]),
-            item("İlk Gruba Ekle", #selector(W.addToFavorites(_:)), "t", [.command, .control]),
-            item("Rafa Ekle", #selector(W.addToShelf(_:)), "d", [.command, .shift]),
+            item(L("Show in Finder"), #selector(W.revealInFinder(_:)), "r", [.command, .shift]),
+            item(L("Open in Terminal"), #selector(W.openTerminalHere(_:)), "t", [.command, .option]),
+            item(L("Copy Path"), #selector(W.copyPath(_:)), "c", [.command, .option]),
+            item(L("Add to First Group"), #selector(W.addToFavorites(_:)), "t", [.command, .control]),
+            item(L("Add to Shelf"), #selector(W.addToShelf(_:)), "d", [.command, .shift]),
             .separator(),
-            item("Çöp Sepetine Taşı", #selector(W.moveToTrash(_:)), backspace),
+            item(L("Move to Trash"), #selector(W.moveToTrash(_:)), backspace),
         ])
 
-        submenu("Düzen", [
-            item("Geri Al", Selector(("undo:")), "z"),
-            item("Yinele", Selector(("redo:")), "z", [.command, .shift]),
+        submenu(L("Edit"), [
+            item(L("Undo"), Selector(("undo:")), "z"),
+            item(L("Redo"), Selector(("redo:")), "z", [.command, .shift]),
             .separator(),
-            item("Kes", #selector(NSText.cut(_:)), "x"),
-            item("Kopyala", #selector(NSText.copy(_:)), "c"),
-            item("Yapıştır", #selector(NSText.paste(_:)), "v"),
-            item("Öğeyi Buraya Taşı", #selector(W.moveHere(_:)), "v", [.command, .option]),
-            item("Tümünü Seç", #selector(NSText.selectAll(_:)), "a"),
+            item(L("Cut"), #selector(NSText.cut(_:)), "x"),
+            item(L("Copy"), #selector(NSText.copy(_:)), "c"),
+            item(L("Paste"), #selector(NSText.paste(_:)), "v"),
+            item(L("Move Item Here"), #selector(W.moveHere(_:)), "v", [.command, .option]),
+            item(L("Select All"), #selector(NSText.selectAll(_:)), "a"),
         ])
 
         let sortItems = SortKey.allCases.map { k in item(k.title, #selector(W.sortBy(_:)), tag: k.rawValue) }
-        let sortTop = NSMenuItem(title: "Sıralama", action: nil, keyEquivalent: "")
+        let sortTop = NSMenuItem(title: L("Sort"), action: nil, keyEquivalent: "")
         let sortMenu = NSMenu()
         sortItems.forEach { sortMenu.addItem($0) }
         sortTop.submenu = sortMenu
 
-        submenu("Görünüm", [
-            item("Kenar Çubuğu", #selector(W.toggleSidebarPanel(_:)), "s", [.command, .option]),
-            item("Önizleme Paneli", #selector(W.togglePreview(_:)), "p", [.command, .option]),
-            item("Çift Panel", #selector(W.toggleDualPane(_:)), "d", [.command, .option]),
-            item("Üst-Alt Yerleşim (kapalıysa yan yana)", #selector(W.toggleLayout(_:)), "l", [.command, .option]),
-            item("Panelleri Değiştir", #selector(W.swapPanes(_:)), "u", [.command, .option]),
-            item("Diğer Panelde Aynı Klasör", #selector(W.sameFolderInOther(_:)), "=", [.command, .option]),
+        submenu(L("View"), [
+            item(L("Sidebar"), #selector(W.toggleSidebarPanel(_:)), "s", [.command, .option]),
+            item(L("Preview Pane"), #selector(W.togglePreview(_:)), "p", [.command, .option]),
+            item(L("Dual Pane"), #selector(W.toggleDualPane(_:)), "d", [.command, .option]),
+            item(L("Stacked Layout (side by side when off)"), #selector(W.toggleLayout(_:)), "l", [.command, .option]),
+            item(L("Swap Panes"), #selector(W.swapPanes(_:)), "u", [.command, .option]),
+            item(L("Same Folder in Other Pane"), #selector(W.sameFolderInOther(_:)), "=", [.command, .option]),
             .separator(),
             {
-                let top = NSMenuItem(title: "Tema", action: nil, keyEquivalent: "")
+                let top = NSMenuItem(title: L("Theme"), action: nil, keyEquivalent: "")
                 let m = NSMenu()
                 for (i, t) in Theme.all.enumerated() { m.addItem(item(t.name, #selector(W.setTheme(_:)), tag: i)) }
                 top.submenu = m
@@ -97,13 +97,13 @@ enum MainMenu {
                 top.submenu = m
                 return top
             }(),
-            item("Gizli Dosyaları Göster", #selector(W.toggleHidden(_:)), ".", [.command, .shift]),
+            item(L("Show Hidden Files"), #selector(W.toggleHidden(_:)), ".", [.command, .shift]),
             sortTop,
             .separator(),
-            item("Hızlı Bakış", #selector(W.toggleQuickLook(_:)), "y"),
-            item("Yenile", #selector(W.reload(_:)), "r"),
+            item(L("Quick Look"), #selector(W.toggleQuickLook(_:)), "y"),
+            item(L("Reload"), #selector(W.reload(_:)), "r"),
             .separator(),
-            item("Tam Ekran", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
+            item(L("Full Screen"), #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ])
 
         func place(_ title: String, _ path: String, _ key: String, _ mods: NSEvent.ModifierFlags = [.command, .shift]) -> NSMenuItem {
@@ -111,29 +111,29 @@ enum MainMenu {
             i.representedObject = path
             return i
         }
-        submenu("Git", [
-            item("Geri", #selector(W.goBack(_:)), "["),
-            item("İleri", #selector(W.goForward(_:)), "]"),
-            item("Üst Klasör", #selector(W.goUp(_:)), up),
-            item("Diğer Panele Geç (Tab)", #selector(W.focusSwitch(_:))),
+        submenu(L("Go"), [
+            item(L("Back"), #selector(W.goBack(_:)), "["),
+            item(L("Forward"), #selector(W.goForward(_:)), "]"),
+            item(L("Enclosing Folder"), #selector(W.goUp(_:)), up),
+            item(L("Switch to Other Pane (Tab)"), #selector(W.focusSwitch(_:))),
             .separator(),
-            place("Ev", "~", "h"),
-            place("Masaüstü", "~/Desktop", "d"),
-            place("Belgeler", "~/Documents", "o"),
-            place("İndirilenler", "~/Downloads", "l", [.command, .option]),
-            place("Uygulamalar", "/Applications", "a"),
-            place("Bilgisayar (/)", "/", "c"),
+            place(L("Home"), "~", "h"),
+            place(L("Desktop"), "~/Desktop", "d"),
+            place(L("Documents"), "~/Documents", "o"),
+            place(L("Downloads"), "~/Downloads", "l", [.command, .option]),
+            place(L("Applications"), "/Applications", "a"),
+            place(L("Computer (/)"), "/", "c"),
             .separator(),
-            item("Klasöre Git…", #selector(W.goToFolder(_:)), "g", [.command, .shift]),
-            item("Komut Paleti…", #selector(W.showCommandPalette(_:)), "k"),
+            item(L("Go to Folder…"), #selector(W.goToFolder(_:)), "g", [.command, .shift]),
+            item(L("Command Palette…"), #selector(W.showCommandPalette(_:)), "k"),
             recentItem(),
             .separator(),
-            item("Yeni Akıllı Klasör…", #selector(W.newSmartFolder(_:)), "n", [.command, .control]),
+            item(L("New Smart Folder…"), #selector(W.newSmartFolder(_:)), "n", [.command, .control]),
         ])
 
-        submenu("Pencere", [
-            item("Küçült", #selector(NSWindow.performMiniaturize(_:)), "m"),
-            item("Büyüt", #selector(NSWindow.performZoom(_:))),
+        submenu(L("Window"), [
+            item(L("Minimize"), #selector(NSWindow.performMiniaturize(_:)), "m"),
+            item(L("Zoom"), #selector(NSWindow.performZoom(_:))),
         ])
         return main
     }
@@ -142,8 +142,8 @@ enum MainMenu {
 
     /// "Son Klasörler ▸" filled from the visit history each time it opens.
     private static func recentItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Son Klasörler", action: nil, keyEquivalent: "")
-        let m = NSMenu(title: "Son Klasörler")
+        let item = NSMenuItem(title: L("Recent Folders"), action: nil, keyEquivalent: "")
+        let m = NSMenu(title: L("Recent Folders"))
         m.delegate = recentDelegate
         item.submenu = m
         return item
@@ -154,7 +154,7 @@ private final class RecentMenuDelegate: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let recent = History.shared.recent(limit: 20)
-        if recent.isEmpty { menu.addItem(NSMenuItem(title: "Geçmiş boş", action: nil, keyEquivalent: "")) }
+        if recent.isEmpty { menu.addItem(NSMenuItem(title: L("No history"), action: nil, keyEquivalent: "")) }
         for u in recent {
             let i = NSMenuItem(title: FileManager.default.displayName(atPath: u.path),
                                action: #selector(MainWindowController.openRecent(_:)), keyEquivalent: "")
