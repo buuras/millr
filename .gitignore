@@ -1,0 +1,6 @@
+.build/
+build/
+.swiftpm/
+.DS_Store
+# Stress test output: logs and a backup of the user's app defaults (folder paths)
+stress/out/

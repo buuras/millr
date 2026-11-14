@@ -1,0 +1,38 @@
+#!/bin/bash
+# Builds OC Commander.app into ./build
+set -euo pipefail
+cd "$(dirname "$0")"
+CONFIG="${1:-release}"
+swift build -c "$CONFIG"
+BIN=".build/$CONFIG/OCCommander"
+APP="build/OC Commander.app"
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$BIN" "$APP/Contents/MacOS/OCCommander"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cat > "$APP/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>OC Commander</string>
+  <key>CFBundleDisplayName</key><string>OC Commander</string>
+  <key>CFBundleIdentifier</key><string>com.bugras.occommander</string>
+  <key>CFBundleExecutable</key><string>OCCommander</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleShortVersionString</key><string>0.1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSDesktopFolderUsageDescription</key><string>Masaüstündeki dosyaları göstermek için.</string>
+  <key>NSDocumentsFolderUsageDescription</key><string>Belgeler klasörünü göstermek için.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>İndirilenler klasörünü göstermek için.</string>
+  <key>NSRemovableVolumesUsageDescription</key><string>Harici diskleri göstermek için.</string>
+  <key>NSNetworkVolumesUsageDescription</key><string>Ağ disklerini göstermek için.</string>
+</dict>
+</plist>
+PLIST
+codesign --force --deep -s - "$APP" >/dev/null 2>&1 || true
+echo "Built: $APP"
