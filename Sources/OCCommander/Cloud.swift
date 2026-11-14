@@ -73,7 +73,7 @@ enum Cloud {
         return out
     }
 
-    /// "GoogleDrive-me@gmail.com" → "Google Drive (me@gmail.com)", "OneDrive-Personal" → "OneDrive (Personal)".
+    /// "GoogleDrive-you@example.com" → "Google Drive (you@example.com)", "OneDrive-Personal" → "OneDrive (Personal)".
     static func displayName(folder: String) -> String {
         let pretty = ["GoogleDrive": "Google Drive", "OneDrive": "OneDrive", "Dropbox": "Dropbox", "Box": "Box",
                       "pCloudDrive": "pCloud", "ProtonDrive": "Proton Drive", "SynologyDrive": "Synology Drive",
